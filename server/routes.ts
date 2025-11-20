@@ -527,43 +527,187 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Waiver wire trending adds from Sleeper API
-  app.get('/api/waiver-wire', async (req, res) => {
+  // Intelligent waiver wire suggestions based on user's roster and rankings
+  app.get('/api/waiver-wire/:id', isAuthenticated, async (req, res) => {
     try {
-      const response = await fetch('https://api.sleeper.app/v1/players/nfl/trending/add?lookback_hours=24&limit=25');
-      if (!response.ok) {
-        throw new Error('Failed to fetch trending players');
+      const user = req.user as User;
+      const { id } = req.params;
+      
+      // Verify the league belongs to the user
+      const league = await storage.getLeagueById(id);
+      if (!league) {
+        return res.status(404).json({ message: "League not found" });
+      }
+      if (league.userId !== user.id) {
+        return res.status(403).json({ message: "Forbidden" });
       }
       
-      const trending = await response.json();
+      // Fetch trending players
+      const trendingResponse = await fetch('https://api.sleeper.app/v1/players/nfl/trending/add?lookback_hours=48&limit=100');
+      if (!trendingResponse.ok) {
+        throw new Error('Failed to fetch trending players');
+      }
+      const trending = await trendingResponse.json();
       
-      // Fetch player info
+      // Fetch player data
       const playersResponse = await fetch('https://api.sleeper.app/v1/players/nfl');
       if (!playersResponse.ok) {
         throw new Error('Failed to fetch player data');
       }
       const players = await playersResponse.json();
       
-      // Map player IDs to names
-      const trendingPlayers = trending.map((t: any) => {
+      // Fetch current season stats for ranking
+      const statsResponse = await fetch('https://api.sleeper.com/stats/nfl/2024?season_type=regular&position[]=QB&position[]=RB&position[]=WR&position[]=TE&position[]=K&position[]=DEF&order_by=pts_ppr');
+      if (!statsResponse.ok) {
+        throw new Error('Failed to fetch player stats');
+      }
+      const allStats = await statsResponse.json();
+      
+      // Create a map of player stats
+      const statsMap = new Map();
+      allStats.forEach((stat: any) => {
+        if (stat.stats?.pts_ppr) {
+          statsMap.set(stat.player_id, {
+            points: stat.stats.pts_ppr,
+            weeklyAvg: stat.stats.pts_ppr / getCurrentNFLWeek()
+          });
+        }
+      });
+      
+      // Get user's team roster
+      const currentWeek = getCurrentNFLWeek();
+      const espnClient = new Client({ leagueId: parseInt(league.leagueId) });
+      
+      let teams;
+      try {
+        let timeoutId: NodeJS.Timeout;
+        const timeoutPromise = new Promise((_, reject) => {
+          timeoutId = setTimeout(() => reject(new Error('ESPN API request timed out')), 15000);
+        });
+        
+        try {
+          teams = await Promise.race([
+            espnClient.getTeamsAtWeek({
+              seasonId: league.seasonId,
+              scoringPeriodId: currentWeek,
+            }),
+            timeoutPromise
+          ]);
+        } finally {
+          clearTimeout(timeoutId!);
+        }
+      } catch (espnError: any) {
+        console.error("ESPN API error:", espnError);
+        // Fallback to just trending if can't get roster
+        const trendingPlayers = trending.slice(0, 25).map((t: any) => {
+          const player = players[t.player_id];
+          const stats = statsMap.get(t.player_id);
+          return {
+            playerId: t.player_id,
+            name: player ? `${player.first_name || ''} ${player.last_name || ''}`.trim() || player.full_name : 'Unknown',
+            position: player?.position || 'N/A',
+            team: player?.team || 'FA',
+            adds: t.count,
+            weeklyAvg: stats?.weeklyAvg?.toFixed(1) || 'N/A',
+            totalPoints: stats?.points?.toFixed(1) || 'N/A',
+            recommendation: 'Trending pickup'
+          };
+        });
+        return res.json(trendingPlayers);
+      }
+      
+      const myTeam = teams.find((t: any) => t.id === league.userTeamId);
+      if (!myTeam) {
+        // Fallback if team not found
+        const trendingPlayers = trending.slice(0, 25).map((t: any) => {
+          const player = players[t.player_id];
+          const stats = statsMap.get(t.player_id);
+          return {
+            playerId: t.player_id,
+            name: player ? `${player.first_name || ''} ${player.last_name || ''}`.trim() || player.full_name : 'Unknown',
+            position: player?.position || 'N/A',
+            team: player?.team || 'FA',
+            adds: t.count,
+            weeklyAvg: stats?.weeklyAvg?.toFixed(1) || 'N/A',
+            totalPoints: stats?.points?.toFixed(1) || 'N/A',
+            recommendation: 'Trending pickup'
+          };
+        });
+        return res.json(trendingPlayers);
+      }
+      
+      // Analyze roster to find weak positions
+      const rosterByPosition = processRoster(myTeam.roster || []).reduce((acc: any, player: any) => {
+        const pos = player.position;
+        if (!acc[pos]) acc[pos] = [];
+        acc[pos].push(player);
+        return acc;
+      }, {});
+      
+      // Calculate average points by position
+      const positionAverages: any = {};
+      Object.keys(rosterByPosition).forEach(pos => {
+        const players = rosterByPosition[pos];
+        const avgPoints = players.reduce((sum: number, p: any) => sum + (p.totalPoints || 0), 0) / players.length;
+        positionAverages[pos] = avgPoints;
+      });
+      
+      // Identify weak positions (below average)
+      const weakPositions = new Set<string>();
+      ['QB', 'RB', 'WR', 'TE'].forEach(pos => {
+        if (!rosterByPosition[pos] || rosterByPosition[pos].length === 0 || positionAverages[pos] < 8) {
+          weakPositions.add(pos);
+        }
+      });
+      
+      // Score and rank waiver wire candidates
+      const candidates = trending.map((t: any) => {
         const player = players[t.player_id];
+        const stats = statsMap.get(t.player_id);
+        const position = player?.position;
+        
+        if (!player || !position || !['QB', 'RB', 'WR', 'TE', 'K', 'DEF'].includes(position)) {
+          return null;
+        }
+        
+        // Calculate recommendation score
+        let score = t.count; // Base score from trending adds
+        if (weakPositions.has(position)) score += 100; // Boost for weak positions
+        if (stats) {
+          score += stats.weeklyAvg * 10; // Boost for performance
+        }
+        
+        let recommendation = '';
+        if (weakPositions.has(position)) {
+          recommendation = `Upgrade weak ${position} position`;
+        } else {
+          recommendation = 'Trending high-value pickup';
+        }
+        
         return {
           playerId: t.player_id,
           name: player ? `${player.first_name || ''} ${player.last_name || ''}`.trim() || player.full_name : 'Unknown',
-          position: player?.position || 'N/A',
+          position: position,
           team: player?.team || 'FA',
-          adds: t.count
+          adds: t.count,
+          weeklyAvg: stats?.weeklyAvg?.toFixed(1) || 'N/A',
+          totalPoints: stats?.points?.toFixed(1) || 'N/A',
+          recommendation,
+          score
         };
-      });
+      }).filter((p: any) => p !== null);
       
-      res.json(trendingPlayers);
+      // Sort by score and return top 25
+      candidates.sort((a: any, b: any) => b.score - a.score);
+      
+      res.json(candidates.slice(0, 25));
     } catch (error) {
       console.error("Error fetching waiver wire:", error);
       res.status(500).json({ message: "Failed to fetch waiver wire suggestions" });
     }
   });
 
-  // Trade suggestions (basic implementation)
+  // Comprehensive trade finder with position analysis and impact assessment
   app.get('/api/trade-suggestions/:id', isAuthenticated, async (req, res) => {
     try {
       const user = req.user as User;
@@ -578,9 +722,207 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ message: "Forbidden" });
       }
       
-      // For now, return empty array - can be enhanced with more sophisticated logic
-      // In a real implementation, this would analyze rosters and suggest trades
-      res.json([]);
+      // Fetch current season stats for player valuations
+      const statsResponse = await fetch('https://api.sleeper.com/stats/nfl/2024?season_type=regular&position[]=QB&position[]=RB&position[]=WR&position[]=TE&position[]=K&position[]=DEF&order_by=pts_ppr');
+      if (!statsResponse.ok) {
+        throw new Error('Failed to fetch player stats');
+      }
+      const allStats = await statsResponse.json();
+      
+      // Fetch player data
+      const playersResponse = await fetch('https://api.sleeper.app/v1/players/nfl');
+      if (!playersResponse.ok) {
+        throw new Error('Failed to fetch player data');
+      }
+      const sleeperPlayers = await playersResponse.json();
+      
+      // Create a map of player stats by Sleeper player ID
+      const statsMap = new Map();
+      allStats.forEach((stat: any) => {
+        if (stat.stats?.pts_ppr) {
+          const player = sleeperPlayers[stat.player_id];
+          if (player) {
+            statsMap.set(player.full_name?.toLowerCase(), {
+              points: stat.stats.pts_ppr,
+              weeklyAvg: stat.stats.pts_ppr / getCurrentNFLWeek(),
+              position: player.position
+            });
+          }
+        }
+      });
+      
+      // Get all teams in the league
+      const currentWeek = getCurrentNFLWeek();
+      const espnClient = new Client({ leagueId: parseInt(league.leagueId) });
+      
+      let teams;
+      try {
+        let timeoutId: NodeJS.Timeout;
+        const timeoutPromise = new Promise((_, reject) => {
+          timeoutId = setTimeout(() => reject(new Error('ESPN API request timed out')), 15000);
+        });
+        
+        try {
+          teams = await Promise.race([
+            espnClient.getTeamsAtWeek({
+              seasonId: league.seasonId,
+              scoringPeriodId: currentWeek,
+            }),
+            timeoutPromise
+          ]);
+        } finally {
+          clearTimeout(timeoutId!);
+        }
+      } catch (espnError: any) {
+        console.error("ESPN API error:", espnError);
+        return res.status(500).json({ message: "Failed to fetch teams from ESPN" });
+      }
+      
+      const myTeam = teams.find((t: any) => t.id === league.userTeamId);
+      if (!myTeam) {
+        return res.json([]);
+      }
+      
+      // Process rosters with player valuations
+      const myRoster = processRoster(myTeam.roster || []).map((player: any) => {
+        const nameKey = player.playerName.toLowerCase();
+        const stats = statsMap.get(nameKey);
+        return {
+          ...player,
+          weeklyAvg: stats?.weeklyAvg || player.totalPoints / currentWeek || 0,
+          value: stats?.weeklyAvg || player.totalPoints / currentWeek || 0
+        };
+      });
+      
+      // Analyze my team's strengths and weaknesses
+      const myPositionStrength: any = {};
+      const myStarters = myRoster.filter(p => p.isStarter);
+      ['QB', 'RB', 'WR', 'TE'].forEach(pos => {
+        const posPlayers = myStarters.filter(p => p.position === pos);
+        if (posPlayers.length > 0) {
+          const avgValue = posPlayers.reduce((sum, p) => sum + p.value, 0) / posPlayers.length;
+          const totalValue = posPlayers.reduce((sum, p) => sum + p.value, 0);
+          myPositionStrength[pos] = {
+            avgValue,
+            totalValue,
+            count: posPlayers.length,
+            players: posPlayers.sort((a, b) => b.value - a.value)
+          };
+        } else {
+          myPositionStrength[pos] = { avgValue: 0, totalValue: 0, count: 0, players: [] };
+        }
+      });
+      
+      // Identify weak and strong positions
+      const positionRanking = Object.entries(myPositionStrength)
+        .map(([pos, data]: [string, any]) => ({ pos, avgValue: data.avgValue }))
+        .sort((a, b) => a.avgValue - b.avgValue);
+      
+      const weakPositions = positionRanking.slice(0, 2).map(p => p.pos);
+      const strongPositions = positionRanking.slice(-2).map(p => p.pos);
+      
+      // Analyze other teams
+      const tradeSuggestions: any[] = [];
+      
+      teams.forEach((otherTeam: any) => {
+        if (otherTeam.id === league.userTeamId) return; // Skip my own team
+        
+        const theirRoster = processRoster(otherTeam.roster || []).map((player: any) => {
+          const nameKey = player.playerName.toLowerCase();
+          const stats = statsMap.get(nameKey);
+          return {
+            ...player,
+            weeklyAvg: stats?.weeklyAvg || player.totalPoints / currentWeek || 0,
+            value: stats?.weeklyAvg || player.totalPoints / currentWeek || 0
+          };
+        });
+        
+        // Analyze their team
+        const theirPositionStrength: any = {};
+        const theirStarters = theirRoster.filter(p => p.isStarter);
+        ['QB', 'RB', 'WR', 'TE'].forEach(pos => {
+          const posPlayers = theirStarters.filter(p => p.position === pos);
+          if (posPlayers.length > 0) {
+            const avgValue = posPlayers.reduce((sum, p) => sum + p.value, 0) / posPlayers.length;
+            theirPositionStrength[pos] = {
+              avgValue,
+              players: posPlayers.sort((a, b) => b.value - a.value)
+            };
+          } else {
+            theirPositionStrength[pos] = { avgValue: 0, players: [] };
+          }
+        });
+        
+        // Find mutually beneficial trades
+        weakPositions.forEach(weakPos => {
+          strongPositions.forEach(strongPos => {
+            // Look for players from their strong position that could help my weak position
+            // AND players from my strong position that could help their weak position
+            
+            const myStrongPlayers = myPositionStrength[strongPos]?.players || [];
+            const theirStrongPlayers = theirPositionStrength[weakPos]?.players || [];
+            
+            // Find tradeable players (not the absolute best, but valuable)
+            const myTradeable = myStrongPlayers.slice(1, 3); // 2nd and 3rd best
+            const theirTradeable = theirStrongPlayers.slice(1, 3);
+            
+            myTradeable.forEach((myPlayer: any) => {
+              theirTradeable.forEach((theirPlayer: any) => {
+                // Calculate trade value fairness (should be relatively close)
+                const valueDiff = Math.abs(myPlayer.value - theirPlayer.value);
+                const avgValue = (myPlayer.value + theirPlayer.value) / 2;
+                const fairness = 1 - (valueDiff / avgValue);
+                
+                if (fairness > 0.7 && myPlayer.value > 3 && theirPlayer.value > 3) {
+                  // Calculate impact on both teams
+                  const myImpact = theirPlayer.value - myPlayer.value;
+                  const theirImpact = myPlayer.value - theirPlayer.value;
+                  
+                  // Check if trade helps both teams
+                  const myWeakPosAvg = myPositionStrength[weakPos]?.avgValue || 0;
+                  const theirWeakPosAvg = theirPositionStrength[strongPos]?.avgValue || 0;
+                  
+                  const helpsMeMore = theirPlayer.value > myWeakPosAvg;
+                  const helpsThemMore = myPlayer.value > theirWeakPosAvg;
+                  
+                  if (helpsMeMore || helpsThemMore || fairness > 0.85) {
+                    tradeSuggestions.push({
+                      teamId: otherTeam.id,
+                      teamName: otherTeam.name || `Team ${otherTeam.id}`,
+                      myPlayer: {
+                        name: myPlayer.playerName,
+                        position: myPlayer.position,
+                        team: myPlayer.nflTeam,
+                        weeklyAvg: myPlayer.weeklyAvg.toFixed(1),
+                        totalPoints: (myPlayer.weeklyAvg * currentWeek).toFixed(1)
+                      },
+                      theirPlayer: {
+                        name: theirPlayer.playerName,
+                        position: theirPlayer.position,
+                        team: theirPlayer.nflTeam,
+                        weeklyAvg: theirPlayer.weeklyAvg.toFixed(1),
+                        totalPoints: (theirPlayer.weeklyAvg * currentWeek).toFixed(1)
+                      },
+                      analysis: {
+                        fairness: (fairness * 100).toFixed(0) + '%',
+                        myImpact: myImpact.toFixed(1),
+                        theirImpact: theirImpact.toFixed(1),
+                        reasoning: `Upgrade your ${weakPos} by getting ${theirPlayer.playerName} (${theirPlayer.weeklyAvg.toFixed(1)} PPG) for ${myPlayer.playerName} (${myPlayer.weeklyAvg.toFixed(1)} PPG) from your deep ${strongPos} position`
+                      },
+                      score: fairness * 100 + (helpsMeMore ? 20 : 0) + (helpsThemMore ? 10 : 0)
+                    });
+                  }
+                }
+              });
+            });
+          });
+        });
+      });
+      
+      // Sort by score and return top suggestions
+      tradeSuggestions.sort((a, b) => b.score - a.score);
+      
+      res.json(tradeSuggestions.slice(0, 10));
     } catch (error) {
       console.error("Error fetching trade suggestions:", error);
       res.status(500).json({ message: "Failed to fetch trade suggestions" });
@@ -611,20 +953,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
   return httpServer;
 }
 
-// Helper function to get current NFL week (approximate)
+// Helper function to get current NFL week (accurate for 2024 season)
 function getCurrentNFLWeek(): number {
   const now = new Date();
-  const year = now.getFullYear();
-  const month = now.getMonth(); // 0-indexed
   
-  // NFL season typically starts in early September
-  if (month < 8) return 1; // Before September
-  if (month > 11) return 18; // After December (playoffs/offseason)
+  // 2024 NFL Regular Season schedule (week start dates)
+  const weekStarts = [
+    new Date('2024-09-05'), // Week 1
+    new Date('2024-09-09'), // Week 2
+    new Date('2024-09-16'), // Week 3
+    new Date('2024-09-23'), // Week 4
+    new Date('2024-09-30'), // Week 5
+    new Date('2024-10-07'), // Week 6
+    new Date('2024-10-14'), // Week 7
+    new Date('2024-10-21'), // Week 8
+    new Date('2024-10-28'), // Week 9
+    new Date('2024-11-04'), // Week 10
+    new Date('2024-11-11'), // Week 11
+    new Date('2024-11-18'), // Week 12
+    new Date('2024-11-25'), // Week 13
+    new Date('2024-12-02'), // Week 14
+    new Date('2024-12-09'), // Week 15
+    new Date('2024-12-16'), // Week 16
+    new Date('2024-12-23'), // Week 17
+    new Date('2024-12-30'), // Week 18
+  ];
   
-  // Approximate week based on date
-  const seasonStart = new Date(year, 8, 5); // ~September 5
-  const daysDiff = Math.floor((now.getTime() - seasonStart.getTime()) / (1000 * 60 * 60 * 24));
-  const week = Math.min(Math.max(Math.floor(daysDiff / 7) + 1, 1), 18);
+  // Find the current week
+  for (let i = weekStarts.length - 1; i >= 0; i--) {
+    if (now >= weekStarts[i]) {
+      return i + 1; // Week number is index + 1
+    }
+  }
   
-  return week;
+  // Before season starts
+  return 1;
 }

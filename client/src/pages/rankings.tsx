@@ -28,9 +28,14 @@ export default function Rankings() {
   return (
     <div className="min-h-[calc(100vh-4rem)] bg-background pb-20">
       <div className="container mx-auto px-4 py-8 max-w-4xl space-y-6">
-        <div className="flex items-center gap-3">
-          <TrendingUp className="w-8 h-8 text-primary" />
-          <h1 className="text-3xl font-bold text-foreground" data-testid="text-rankings-title">Player Rankings</h1>
+        <div>
+          <div className="flex items-center gap-3 mb-2">
+            <TrendingUp className="w-8 h-8 text-primary" />
+            <h1 className="text-3xl font-bold text-foreground" data-testid="text-rankings-title">Player Rankings</h1>
+          </div>
+          <p className="text-muted-foreground">
+            2024 season PPR rankings - Updated with latest stats
+          </p>
         </div>
 
         <Tabs value={selectedPosition} onValueChange={setSelectedPosition} className="w-full" data-testid="tabs-rankings">
@@ -47,17 +52,17 @@ export default function Rankings() {
             return (
               <TabsContent key={pos} value={pos} className="mt-6">
                 <Card>
-                  <CardHeader>
+                  <CardHeader className="pb-3">
                     <CardTitle className="flex items-center gap-2" data-testid={`title-${pos}-rankings`}>
-                      <Trophy className="w-5 h-5" />
-                      {pos} Rankings (2024 Season)
+                      <Trophy className="w-5 h-5 text-primary" />
+                      Top {pos} Players
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
                     {isLoading ? (
                       <div className="space-y-2">
                         {Array.from({ length: 20 }).map((_, i) => (
-                          <Skeleton key={i} className="h-16 w-full" />
+                          <Skeleton key={i} className="h-20 w-full" />
                         ))}
                       </div>
                     ) : positionRankings.length > 0 ? (
@@ -65,39 +70,43 @@ export default function Rankings() {
                         {positionRankings.map((player, index) => (
                           <div
                             key={player.playerId}
-                            className={`flex items-center gap-4 p-4 rounded-md ${
+                            className={`flex items-center gap-4 p-4 rounded-md border ${
                               index < 3
-                                ? "bg-primary/10 border border-primary/20"
-                                : "bg-muted/30"
+                                ? "bg-primary/10 border-primary/30 hover-elevate"
+                                : "bg-card hover-elevate"
                             }`}
                             data-testid={`player-${index}`}
                           >
-                            <div className="flex items-center justify-center w-10 h-10 rounded-full bg-primary/20">
-                              <span className="font-bold text-primary text-sm">{player.rank}</span>
+                            <div className={`flex items-center justify-center w-12 h-12 rounded-full shrink-0 ${
+                              index < 3 ? 'bg-primary text-primary-foreground' : 'bg-muted'
+                            }`}>
+                              <span className="font-bold text-lg">{player.rank}</span>
                             </div>
-                            <div className="flex-1">
-                              <p className="font-semibold text-foreground">{player.name}</p>
-                              <p className="text-sm text-muted-foreground">
-                                {player.team} • {player.position}
-                              </p>
-                            </div>
-                            <div className="text-right">
-                              <p className="font-semibold text-foreground">
-                                {player.points.toFixed(1)} pts
-                              </p>
-                              {index < 3 && (
-                                <Badge variant="secondary" className="text-xs mt-1">
-                                  Top {index + 1}
+                            <div className="flex-1 min-w-0">
+                              <p className="font-semibold text-foreground text-lg truncate">{player.name}</p>
+                              <div className="flex items-center gap-2 mt-1">
+                                <Badge variant="outline" className="text-xs">
+                                  {player.team}
                                 </Badge>
-                              )}
+                                <span className="text-sm text-muted-foreground">{player.position}</span>
+                              </div>
+                            </div>
+                            <div className="text-right shrink-0">
+                              <p className="text-xl font-bold text-primary">
+                                {player.points.toFixed(1)}
+                              </p>
+                              <p className="text-xs text-muted-foreground">Total Points</p>
                             </div>
                           </div>
                         ))}
                       </div>
                     ) : (
-                      <p className="text-muted-foreground text-center py-16" data-testid={`text-no-rankings-${pos}`}>
-                        No rankings available for {pos}
-                      </p>
+                      <div className="text-center py-16">
+                        <Trophy className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+                        <p className="text-muted-foreground" data-testid={`text-no-rankings-${pos}`}>
+                          No rankings available for {pos}
+                        </p>
+                      </div>
                     )}
                   </CardContent>
                 </Card>

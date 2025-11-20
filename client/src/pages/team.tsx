@@ -61,12 +61,12 @@ export default function Team() {
     enabled: teamSelectionDialog.open && !!teamSelectionDialog.leagueDbId,
   });
 
-  const { data: trendingAdds } = useQuery<any[]>({
-    queryKey: ["/api/waiver-wire"],
+  const { data: trendingAdds, isLoading: waiverLoading } = useQuery<any[]>({
+    queryKey: ["/api/waiver-wire", selectedLeague?.id],
     enabled: !!selectedLeague,
   });
 
-  const { data: tradeSuggestions } = useQuery<any[]>({
+  const { data: tradeSuggestions, isLoading: tradesLoading } = useQuery<any[]>({
     queryKey: ["/api/trade-suggestions", selectedLeague?.id],
     enabled: !!selectedLeague,
   });
@@ -181,49 +181,62 @@ export default function Team() {
 
             <TabsContent value="roster" className="space-y-4 mt-6">
               <Card>
-                <CardHeader>
+                <CardHeader className="pb-3">
                   <CardTitle className="flex items-center gap-2">
-                    <Trophy className="w-5 h-5" />
-                    Starting Lineup (Week {currentWeek})
+                    <Trophy className="w-5 h-5 text-primary" />
+                    Starting Lineup - Week {currentWeek}
                   </CardTitle>
+                  <CardDescription>
+                    Your active players for this week
+                  </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-2">
                   {teamsLoading ? (
                     Array.from({ length: 9 }).map((_, i) => (
-                      <Skeleton key={i} className="h-16 w-full" />
+                      <Skeleton key={i} className="h-20 w-full" />
                     ))
                   ) : starters.length > 0 ? (
                     starters.map((player: any, index: number) => (
                       <div
                         key={index}
-                        className="flex items-center justify-between p-3 rounded-md bg-muted/30 hover-elevate"
+                        className="flex items-center justify-between p-4 rounded-md border bg-card hover-elevate"
                         data-testid={`player-starter-${index}`}
                       >
-                        <div className="flex items-center gap-3">
-                          <Badge variant="secondary" className="w-12 text-center">
+                        <div className="flex items-center gap-4 flex-1 min-w-0">
+                          <Badge variant="default" className="w-14 text-center shrink-0">
                             {player.position}
                           </Badge>
-                          <div>
-                            <p className="font-medium text-foreground">{player.playerName}</p>
+                          <div className="min-w-0 flex-1">
+                            <p className="font-semibold text-foreground truncate">{player.playerName}</p>
                             <p className="text-sm text-muted-foreground">
                               {player.nflTeam} {player.opponent && `vs ${player.opponent}`}
                             </p>
                           </div>
                         </div>
-                        <div className="text-right">
-                          <p className="font-semibold text-foreground">{player.totalPoints?.toFixed(1) || '0.0'} pts</p>
+                        <div className="text-right shrink-0 ml-2">
+                          <p className="text-lg font-bold text-primary">{player.totalPoints?.toFixed(1) || '0.0'}</p>
+                          <p className="text-xs text-muted-foreground">points</p>
                         </div>
                       </div>
                     ))
                   ) : (
-                    <p className="text-muted-foreground text-center py-8">No starters found</p>
+                    <div className="text-center py-12">
+                      <Trophy className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+                      <p className="text-muted-foreground">No starting lineup found</p>
+                      <p className="text-sm text-muted-foreground mt-2">
+                        Set your lineup in the ESPN app
+                      </p>
+                    </div>
                   )}
                 </CardContent>
               </Card>
 
               <Card>
-                <CardHeader>
-                  <CardTitle>Bench</CardTitle>
+                <CardHeader className="pb-3">
+                  <CardTitle>Bench Players</CardTitle>
+                  <CardDescription>
+                    Reserve players not in your starting lineup
+                  </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-2">
                   {teamsLoading ? (
@@ -234,21 +247,21 @@ export default function Team() {
                     bench.map((player: any, index: number) => (
                       <div
                         key={index}
-                        className="flex items-center justify-between p-3 rounded-md bg-muted/30"
+                        className="flex items-center justify-between p-3 rounded-md bg-muted/40"
                         data-testid={`player-bench-${index}`}
                       >
-                        <div className="flex items-center gap-3">
-                          <Badge variant="outline" className="w-12 text-center">
+                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                          <Badge variant="outline" className="w-14 text-center shrink-0">
                             {player.position}
                           </Badge>
-                          <div>
-                            <p className="font-medium text-foreground">{player.playerName}</p>
+                          <div className="min-w-0 flex-1">
+                            <p className="font-medium text-foreground truncate">{player.playerName}</p>
                             <p className="text-sm text-muted-foreground">
                               {player.nflTeam} {player.opponent && `vs ${player.opponent}`}
                             </p>
                           </div>
                         </div>
-                        <div className="text-right">
+                        <div className="text-right shrink-0">
                           <p className="font-semibold text-muted-foreground">{player.totalPoints?.toFixed(1) || '0.0'} pts</p>
                         </div>
                       </div>
@@ -265,31 +278,64 @@ export default function Team() {
                 <Skeleton className="h-64 w-full" />
               ) : myMatchup ? (
                 <Card>
-                  <CardHeader>
-                    <CardTitle>Week {currentWeek} Matchup</CardTitle>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="flex items-center gap-2">
+                      <Trophy className="w-5 h-5" />
+                      Week {currentWeek} Matchup
+                    </CardTitle>
+                    <CardDescription>
+                      {myTeam?.wins || 0}-{myTeam?.losses || 0}-{myTeam?.ties || 0} overall record
+                    </CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <div className="grid grid-cols-3 gap-4 items-center text-center">
-                      <div className="space-y-2">
-                        <p className="font-semibold text-foreground" data-testid="text-my-team">{myTeam?.name || 'My Team'}</p>
-                        <p className="text-3xl font-bold text-primary" data-testid="text-my-score">
+                    <div className="grid grid-cols-3 gap-6 items-center text-center mb-6">
+                      <div className="space-y-3">
+                        <p className="font-semibold text-foreground text-lg" data-testid="text-my-team">{myTeam?.name || 'My Team'}</p>
+                        <p className="text-4xl font-bold text-primary" data-testid="text-my-score">
                           {isHomeTeam ? myMatchup.homeScore?.toFixed(1) : myMatchup.awayScore?.toFixed(1)}
                         </p>
+                        <p className="text-sm text-muted-foreground">Your Score</p>
                       </div>
-                      <div className="text-2xl font-bold text-muted-foreground">VS</div>
-                      <div className="space-y-2">
-                        <p className="font-semibold text-foreground" data-testid="text-opponent">{opponentTeam?.name || 'Opponent'}</p>
-                        <p className="text-3xl font-bold text-muted-foreground" data-testid="text-opponent-score">
+                      <div>
+                        <div className="text-2xl font-bold text-muted-foreground bg-muted/30 rounded-full w-16 h-16 flex items-center justify-center mx-auto">
+                          VS
+                        </div>
+                      </div>
+                      <div className="space-y-3">
+                        <p className="font-semibold text-foreground text-lg" data-testid="text-opponent">{opponentTeam?.name || 'Opponent'}</p>
+                        <p className="text-4xl font-bold text-muted-foreground" data-testid="text-opponent-score">
                           {isHomeTeam ? myMatchup.awayScore?.toFixed(1) : myMatchup.homeScore?.toFixed(1)}
                         </p>
+                        <p className="text-sm text-muted-foreground">Opponent Score</p>
                       </div>
                     </div>
+                    {myMatchup.homeScore !== undefined && myMatchup.awayScore !== undefined && (
+                      <div className="text-center">
+                        <Badge 
+                          variant={
+                            (isHomeTeam ? myMatchup.homeScore > myMatchup.awayScore : myMatchup.awayScore > myMatchup.homeScore)
+                              ? "default"
+                              : myMatchup.homeScore === myMatchup.awayScore
+                              ? "outline"
+                              : "secondary"
+                          }
+                          className="text-base px-4 py-1"
+                        >
+                          {isHomeTeam && myMatchup.homeScore > myMatchup.awayScore && "You're Winning!"}
+                          {isHomeTeam && myMatchup.homeScore < myMatchup.awayScore && "You're Losing"}
+                          {!isHomeTeam && myMatchup.awayScore > myMatchup.homeScore && "You're Winning!"}
+                          {!isHomeTeam && myMatchup.awayScore < myMatchup.homeScore && "You're Losing"}
+                          {myMatchup.homeScore === myMatchup.awayScore && "It's Tied!"}
+                        </Badge>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               ) : (
                 <Card>
                   <CardContent className="py-16 text-center">
-                    <p className="text-muted-foreground">No matchup data available</p>
+                    <Users className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+                    <p className="text-muted-foreground">No matchup data available for Week {currentWeek}</p>
                   </CardContent>
                 </Card>
               )}
@@ -300,35 +346,84 @@ export default function Team() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Users className="w-5 h-5" />
-                    Trade Suggestions
+                    Trade Finder
                   </CardTitle>
                   <CardDescription>
-                    Based on your roster needs and rankings
+                    Smart trade suggestions based on roster analysis and position needs
                   </CardDescription>
                 </CardHeader>
-                <CardContent>
-                  {tradeSuggestions && tradeSuggestions.length > 0 ? (
-                    <div className="space-y-4">
-                      {tradeSuggestions.map((suggestion: any, index: number) => (
-                        <div key={index} className="p-4 rounded-md bg-muted/30">
-                          <p className="text-sm text-muted-foreground mb-2">Trade with {suggestion.teamName}</p>
-                          <div className="grid grid-cols-2 gap-4">
-                            <div>
-                              <p className="text-xs font-semibold text-muted-foreground mb-1">You Give</p>
-                              <p className="font-medium">{suggestion.yourPlayer}</p>
+                <CardContent className="space-y-3">
+                  {tradesLoading ? (
+                    Array.from({ length: 3 }).map((_, i) => (
+                      <Skeleton key={i} className="h-32 w-full" />
+                    ))
+                  ) : tradeSuggestions && tradeSuggestions.length > 0 ? (
+                    tradeSuggestions.map((suggestion: any, index: number) => (
+                      <div 
+                        key={index} 
+                        className="p-4 rounded-md border bg-card hover-elevate"
+                        data-testid={`trade-suggestion-${index}`}
+                      >
+                        <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+                          <h4 className="font-semibold text-foreground">Trade with {suggestion.teamName}</h4>
+                          <Badge variant="outline">{suggestion.analysis.fairness} Fair</Badge>
+                        </div>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-3">
+                          <div className="space-y-2">
+                            <p className="text-xs font-semibold text-muted-foreground uppercase">You Give</p>
+                            <div className="p-3 rounded-md bg-destructive/10 border border-destructive/20">
+                              <p className="font-medium text-foreground">{suggestion.myPlayer.name}</p>
+                              <div className="flex items-center justify-between mt-1">
+                                <span className="text-sm text-muted-foreground">
+                                  {suggestion.myPlayer.position} - {suggestion.myPlayer.team}
+                                </span>
+                                <span className="text-sm font-semibold text-foreground">
+                                  {suggestion.myPlayer.weeklyAvg} PPG
+                                </span>
+                              </div>
                             </div>
-                            <div>
-                              <p className="text-xs font-semibold text-muted-foreground mb-1">You Get</p>
-                              <p className="font-medium text-primary">{suggestion.theirPlayer}</p>
+                          </div>
+                          
+                          <div className="space-y-2">
+                            <p className="text-xs font-semibold text-muted-foreground uppercase">You Get</p>
+                            <div className="p-3 rounded-md bg-primary/10 border border-primary/20">
+                              <p className="font-medium text-foreground">{suggestion.theirPlayer.name}</p>
+                              <div className="flex items-center justify-between mt-1">
+                                <span className="text-sm text-muted-foreground">
+                                  {suggestion.theirPlayer.position} - {suggestion.theirPlayer.team}
+                                </span>
+                                <span className="text-sm font-semibold text-primary">
+                                  {suggestion.theirPlayer.weeklyAvg} PPG
+                                </span>
+                              </div>
                             </div>
                           </div>
                         </div>
-                      ))}
-                    </div>
+                        
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="text-muted-foreground">Your Impact:</span>
+                            <span className={`font-semibold ${parseFloat(suggestion.analysis.myImpact) > 0 ? 'text-green-600 dark:text-green-400' : 'text-destructive'}`}>
+                              {parseFloat(suggestion.analysis.myImpact) > 0 ? '+' : ''}{suggestion.analysis.myImpact} PPG
+                            </span>
+                          </div>
+                          <p className="text-sm text-muted-foreground italic">
+                            {suggestion.analysis.reasoning}
+                          </p>
+                        </div>
+                      </div>
+                    ))
                   ) : (
-                    <p className="text-muted-foreground text-center py-8">
-                      Trade suggestions will appear here based on your roster
-                    </p>
+                    <div className="text-center py-12">
+                      <Users className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+                      <p className="text-muted-foreground mb-2">
+                        Analyzing all possible trades...
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        No mutually beneficial trades found at this time
+                      </p>
+                    </div>
                   )}
                 </CardContent>
               </Card>
@@ -339,31 +434,57 @@ export default function Team() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <TrendingUp className="w-5 h-5" />
-                    Trending Adds
+                    Waiver Wire Recommendations
                   </CardTitle>
                   <CardDescription>
-                    Most added players across all leagues (last 24 hours)
+                    Personalized suggestions based on your team needs and player rankings
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-2">
-                  {trendingAdds && trendingAdds.length > 0 ? (
+                  {waiverLoading ? (
+                    Array.from({ length: 10 }).map((_, i) => (
+                      <Skeleton key={i} className="h-20 w-full" />
+                    ))
+                  ) : trendingAdds && trendingAdds.length > 0 ? (
                     trendingAdds.map((player: any, index: number) => (
                       <div
                         key={index}
-                        className="flex items-center justify-between p-3 rounded-md bg-muted/30"
+                        className="flex items-center justify-between p-4 rounded-md border bg-card hover-elevate"
                         data-testid={`waiver-player-${index}`}
                       >
-                        <div>
-                          <p className="font-medium text-foreground">{player.name}</p>
-                          <p className="text-sm text-muted-foreground">{player.position} - {player.team}</p>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 mb-2">
+                            <Badge variant="secondary" className="shrink-0">
+                              {player.position}
+                            </Badge>
+                            <div>
+                              <p className="font-medium text-foreground">{player.name}</p>
+                              <p className="text-sm text-muted-foreground">{player.team}</p>
+                            </div>
+                          </div>
+                          {player.recommendation && (
+                            <p className="text-sm text-primary italic ml-16">
+                              {player.recommendation}
+                            </p>
+                          )}
                         </div>
-                        <Badge variant="secondary">{player.adds || 0} adds</Badge>
+                        <div className="text-right space-y-1 shrink-0">
+                          <div className="text-sm font-semibold text-foreground">
+                            {player.weeklyAvg !== 'N/A' ? `${player.weeklyAvg} PPG` : ''}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {player.adds} adds
+                          </div>
+                        </div>
                       </div>
                     ))
                   ) : (
-                    <p className="text-muted-foreground text-center py-8">
-                      Loading trending waiver wire picks...
-                    </p>
+                    <div className="text-center py-12">
+                      <TrendingUp className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+                      <p className="text-muted-foreground">
+                        Analyzing waiver wire opportunities...
+                      </p>
+                    </div>
                   )}
                 </CardContent>
               </Card>
