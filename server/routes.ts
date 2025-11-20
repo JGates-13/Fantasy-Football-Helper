@@ -41,7 +41,7 @@ function processRoster(roster: any[]): any[] {
     // ESPN API has nested structure - need to dig deep
     let player: any = null;
     let playerSlot = entry;
-    
+
     // Try different paths to find player data
     if (entry.playerPoolEntry?.player) {
       player = entry.playerPoolEntry.player;
@@ -50,26 +50,26 @@ function processRoster(roster: any[]): any[] {
     } else if (entry.entry?.playerPoolEntry?.player) {
       player = entry.entry.playerPoolEntry.player;
     }
-    
+
     // If still no player, check if entry itself has player properties
     if (!player && entry.fullName) {
       player = entry;
     }
-    
+
     // Extract lineup slot ID from various locations
     const lineupSlotId = entry.lineupSlotId ?? 
                          entry.slot ?? 
                          entry.lineupSlot ?? 
                          entry.slotCategoryId ?? 
                          20; // Default to bench
-    
+
     // Get NFL team and opponent info
     const nflTeamId = player?.proTeamId ?? player?.proTeam ?? null;
     const opponentTeamId = player?.opponentProTeamId ?? null;
-    
+
     // Determine player name with extensive fallbacks
     let playerName = 'Empty Slot';
-    
+
     if (player) {
       // Try fullName first
       if (player.fullName) {
@@ -92,10 +92,10 @@ function processRoster(roster: any[]): any[] {
         playerName = `${NFL_TEAM_NAMES[nflTeamId]} D/ST`;
       }
     }
-    
+
     // Get position label
     let position = LINEUP_SLOT_LABELS[lineupSlotId] || 'SLOT';
-    
+
     // Also try to get the actual player position if available
     if (player?.defaultPositionId && LINEUP_SLOT_LABELS[player.defaultPositionId]) {
       position = LINEUP_SLOT_LABELS[player.defaultPositionId];
@@ -105,29 +105,32 @@ function processRoster(roster: any[]): any[] {
         position = LINEUP_SLOT_LABELS[firstEligible];
       }
     }
-    
+
     // Extract points
     const totalPoints = entry.totalPoints ?? 
                        entry.points ?? 
                        entry.appliedStatTotal ?? 
                        player?.points ?? 
                        0;
-    
+
     const projectedPoints = entry.projectedPoints ?? 
                            entry.currentPeriodProjectedStats ?? 
                            player?.projectedPoints ?? 
                            0;
-    
+
+    // Determine if this is a starter (lineup slot < 20 means active lineup)
+    const isStarter = lineupSlotId < 20;
+
     return {
+      playerId: player?.id ?? null,
       playerName,
-      position,
+      position: LINEUP_SLOT_LABELS[lineupSlotId] || player?.defaultPosition || 'N/A',
       lineupSlotId,
-      isStarter: lineupSlotId !== 20 && lineupSlotId !== 21, // 20=bench, 21=IR
+      isStarter,
+      nflTeam: nflTeamId ? NFL_TEAM_NAMES[nflTeamId] || 'FA' : 'FA',
+      opponent: opponentTeamId ? NFL_TEAM_NAMES[opponentTeamId] : null,
       totalPoints: parseFloat(totalPoints) || 0,
       projectedPoints: parseFloat(projectedPoints) || 0,
-      nflTeam: nflTeamId && NFL_TEAM_NAMES[nflTeamId] ? NFL_TEAM_NAMES[nflTeamId] : '',
-      opponent: opponentTeamId && NFL_TEAM_NAMES[opponentTeamId] ? NFL_TEAM_NAMES[opponentTeamId] : null,
-      playerId: player?.playerId ?? player?.id ?? null,
       playerPosition: player?.defaultPositionId && LINEUP_SLOT_LABELS[player.defaultPositionId] 
         ? LINEUP_SLOT_LABELS[player.defaultPositionId] 
         : null,
@@ -218,10 +221,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       } catch (espnError: any) {
         console.error("ESPN API error for league", cleanedLeagueId, "season", seasonYear, ":", espnError);
-        
+
         let errorMessage = "Failed to fetch league from ESPN. ";
         const statusCode = espnError.response?.status;
-        
+
         if (espnError.message?.includes('timeout')) {
           errorMessage = "ESPN API request timed out. Please try again.";
         } else if (statusCode === 401) {
@@ -231,7 +234,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         } else {
           errorMessage += `Please verify your league ID and season year are correct. (Error: ${statusCode || 'Unknown'})`;
         }
-        
+
         return res.status(400).json({ message: errorMessage });
       }
 
@@ -473,21 +476,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get current season year dynamically
       const now = new Date();
       const currentSeasonYear = now.getMonth() >= 8 ? now.getFullYear() : now.getFullYear() - 1;
-      
+
       const response = await fetch(`https://api.sleeper.com/stats/nfl/${currentSeasonYear}?season_type=regular&position[]=QB&position[]=RB&position[]=WR&position[]=TE&position[]=K&position[]=DEF&order_by=pts_ppr`);
       if (!response.ok) {
         throw new Error('Failed to fetch rankings from Sleeper');
       }
-      
+
       const allStats = await response.json();
-      
+
       // Also fetch player info to get names
       const playersResponse = await fetch('https://api.sleeper.app/v1/players/nfl');
       if (!playersResponse.ok) {
         throw new Error('Failed to fetch player data');
       }
       const players = await playersResponse.json();
-      
+
       // Organize rankings by position
       const rankings: any = {
         QB: [],
@@ -497,10 +500,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         K: [],
         DEF: []
       };
-      
+
       // Get current week to calculate per-game averages
       const currentWeek = getCurrentNFLWeek();
-      
+
       // Process and rank players
       allStats.forEach((stat: any, index: number) => {
         const player = players[stat.player_id];
@@ -519,7 +522,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         }
       });
-      
+
       // Sort each position by points and limit to top 50
       Object.keys(rankings).forEach(pos => {
         rankings[pos] = rankings[pos]
@@ -527,7 +530,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           .slice(0, 50)
           .map((p: any, idx: number) => ({ ...p, rank: idx + 1 }));
       });
-      
+
       res.json(rankings);
     } catch (error) {
       console.error("Error fetching rankings:", error);
@@ -540,7 +543,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const user = req.user as User;
       const { id } = req.params;
-      
+
       // Verify the league belongs to the user
       const league = await storage.getLeagueById(id);
       if (!league) {
@@ -549,31 +552,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (league.userId !== user.id) {
         return res.status(403).json({ message: "Forbidden" });
       }
-      
+
       // Fetch trending players
       const trendingResponse = await fetch('https://api.sleeper.app/v1/players/nfl/trending/add?lookback_hours=48&limit=100');
       if (!trendingResponse.ok) {
         throw new Error('Failed to fetch trending players');
       }
       const trending = await trendingResponse.json();
-      
+
       // Fetch player data
       const playersResponse = await fetch('https://api.sleeper.app/v1/players/nfl');
       if (!playersResponse.ok) {
         throw new Error('Failed to fetch player data');
       }
       const players = await playersResponse.json();
-      
+
       // Fetch current season stats for ranking
       const now = new Date();
       const currentSeasonYear = now.getMonth() >= 8 ? now.getFullYear() : now.getFullYear() - 1;
-      
+
       const statsResponse = await fetch(`https://api.sleeper.com/stats/nfl/${currentSeasonYear}?season_type=regular&position[]=QB&position[]=RB&position[]=WR&position[]=TE&position[]=K&position[]=DEF&order_by=pts_ppr`);
       if (!statsResponse.ok) {
         throw new Error('Failed to fetch player stats');
       }
       const allStats = await statsResponse.json();
-      
+
       // Create a map of player stats
       const statsMap = new Map();
       allStats.forEach((stat: any) => {
@@ -584,18 +587,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
           });
         }
       });
-      
+
       // Get user's team roster
       const currentWeek = getCurrentNFLWeek();
       const espnClient = new Client({ leagueId: parseInt(league.leagueId) });
-      
+
       let teams;
       try {
         let timeoutId: NodeJS.Timeout;
         const timeoutPromise = new Promise((_, reject) => {
           timeoutId = setTimeout(() => reject(new Error('ESPN API request timed out')), 15000);
         });
-        
+
         try {
           teams = await Promise.race([
             espnClient.getTeamsAtWeek({
@@ -626,7 +629,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
         return res.json(trendingPlayers);
       }
-      
+
       const myTeam = teams.find((t: any) => t.id === league.userTeamId);
       if (!myTeam) {
         // Fallback if team not found
@@ -646,7 +649,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
         return res.json(trendingPlayers);
       }
-      
+
       // Analyze roster to find weak positions
       const rosterByPosition = processRoster(myTeam.roster || []).reduce((acc: any, player: any) => {
         const pos = player.position;
@@ -654,7 +657,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         acc[pos].push(player);
         return acc;
       }, {});
-      
+
       // Calculate average points by position
       const positionAverages: any = {};
       Object.keys(rosterByPosition).forEach(pos => {
@@ -662,7 +665,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const avgPoints = players.reduce((sum: number, p: any) => sum + (p.totalPoints || 0), 0) / players.length;
         positionAverages[pos] = avgPoints;
       });
-      
+
       // Identify weak positions (below average)
       const weakPositions = new Set<string>();
       ['QB', 'RB', 'WR', 'TE'].forEach(pos => {
@@ -670,31 +673,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
           weakPositions.add(pos);
         }
       });
-      
+
       // Score and rank waiver wire candidates
       const candidates = trending.map((t: any) => {
         const player = players[t.player_id];
         const stats = statsMap.get(t.player_id);
         const position = player?.position;
-        
+
         if (!player || !position || !['QB', 'RB', 'WR', 'TE', 'K', 'DEF'].includes(position)) {
           return null;
         }
-        
+
         // Calculate recommendation score
         let score = t.count; // Base score from trending adds
         if (weakPositions.has(position)) score += 100; // Boost for weak positions
         if (stats) {
           score += stats.weeklyAvg * 10; // Boost for performance
         }
-        
+
         let recommendation = '';
         if (weakPositions.has(position)) {
           recommendation = `Upgrade weak ${position} position`;
         } else {
           recommendation = 'Trending high-value pickup';
         }
-        
+
         return {
           playerId: t.player_id,
           name: player ? `${player.first_name || ''} ${player.last_name || ''}`.trim() || player.full_name : 'Unknown',
@@ -707,10 +710,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           score
         };
       }).filter((p: any) => p !== null);
-      
+
       // Sort by score and return top 25
       candidates.sort((a: any, b: any) => b.score - a.score);
-      
+
       res.json(candidates.slice(0, 25));
     } catch (error) {
       console.error("Error fetching waiver wire:", error);
@@ -723,7 +726,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const user = req.user as User;
       const { id } = req.params;
-      
+
       // Verify the league belongs to the user
       const league = await storage.getLeagueById(id);
       if (!league) {
@@ -732,24 +735,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (league.userId !== user.id) {
         return res.status(403).json({ message: "Forbidden" });
       }
-      
+
       // Fetch current season stats for player valuations
       const now = new Date();
       const currentSeasonYear = now.getMonth() >= 8 ? now.getFullYear() : now.getFullYear() - 1;
-      
+
       const statsResponse = await fetch(`https://api.sleeper.com/stats/nfl/${currentSeasonYear}?season_type=regular&position[]=QB&position[]=RB&position[]=WR&position[]=TE&position[]=K&position[]=DEF&order_by=pts_ppr`);
       if (!statsResponse.ok) {
         throw new Error('Failed to fetch player stats');
       }
       const allStats = await statsResponse.json();
-      
+
       // Fetch player data
       const playersResponse = await fetch('https://api.sleeper.app/v1/players/nfl');
       if (!playersResponse.ok) {
         throw new Error('Failed to fetch player data');
       }
       const sleeperPlayers = await playersResponse.json();
-      
+
       // Create a map of player stats by Sleeper player ID
       const statsMap = new Map();
       allStats.forEach((stat: any) => {
@@ -764,18 +767,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         }
       });
-      
+
       // Get all teams in the league
       const currentWeek = getCurrentNFLWeek();
       const espnClient = new Client({ leagueId: parseInt(league.leagueId) });
-      
+
       let teams;
       try {
         let timeoutId: NodeJS.Timeout;
         const timeoutPromise = new Promise((_, reject) => {
           timeoutId = setTimeout(() => reject(new Error('ESPN API request timed out')), 15000);
         });
-        
+
         try {
           teams = await Promise.race([
             espnClient.getTeamsAtWeek({
@@ -791,12 +794,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.error("ESPN API error:", espnError);
         return res.status(500).json({ message: "Failed to fetch teams from ESPN" });
       }
-      
+
       const myTeam = teams.find((t: any) => t.id === league.userTeamId);
       if (!myTeam) {
         return res.json([]);
       }
-      
+
       // Process rosters with player valuations
       const myRoster = processRoster(myTeam.roster || []).map((player: any) => {
         const nameKey = player.playerName.toLowerCase();
@@ -807,7 +810,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           value: stats?.weeklyAvg || player.totalPoints / currentWeek || 0
         };
       });
-      
+
       // Analyze my team's strengths and weaknesses
       const myPositionStrength: any = {};
       const myStarters = myRoster.filter(p => p.isStarter);
@@ -826,21 +829,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
           myPositionStrength[pos] = { avgValue: 0, totalValue: 0, count: 0, players: [] };
         }
       });
-      
+
       // Identify weak and strong positions
       const positionRanking = Object.entries(myPositionStrength)
         .map(([pos, data]: [string, any]) => ({ pos, avgValue: data.avgValue }))
         .sort((a, b) => a.avgValue - b.avgValue);
-      
+
       const weakPositions = positionRanking.slice(0, 2).map(p => p.pos);
       const strongPositions = positionRanking.slice(-2).map(p => p.pos);
-      
+
       // Analyze other teams
       const tradeSuggestions: any[] = [];
-      
+
       teams.forEach((otherTeam: any) => {
         if (otherTeam.id === league.userTeamId) return; // Skip my own team
-        
+
         const theirRoster = processRoster(otherTeam.roster || []).map((player: any) => {
           const nameKey = player.playerName.toLowerCase();
           const stats = statsMap.get(nameKey);
@@ -850,7 +853,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             value: stats?.weeklyAvg || player.totalPoints / currentWeek || 0
           };
         });
-        
+
         // Analyze their team
         const theirPositionStrength: any = {};
         const theirStarters = theirRoster.filter(p => p.isStarter);
@@ -866,39 +869,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
             theirPositionStrength[pos] = { avgValue: 0, players: [] };
           }
         });
-        
+
         // Find mutually beneficial trades
         weakPositions.forEach(weakPos => {
           strongPositions.forEach(strongPos => {
             // Look for players from their strong position that could help my weak position
             // AND players from my strong position that could help their weak position
-            
+
             const myStrongPlayers = myPositionStrength[strongPos]?.players || [];
             const theirStrongPlayers = theirPositionStrength[weakPos]?.players || [];
-            
+
             // Find tradeable players (not the absolute best, but valuable)
             const myTradeable = myStrongPlayers.slice(1, 3); // 2nd and 3rd best
             const theirTradeable = theirStrongPlayers.slice(1, 3);
-            
+
             myTradeable.forEach((myPlayer: any) => {
               theirTradeable.forEach((theirPlayer: any) => {
                 // Calculate trade value fairness (should be relatively close)
                 const valueDiff = Math.abs(myPlayer.value - theirPlayer.value);
                 const avgValue = (myPlayer.value + theirPlayer.value) / 2;
                 const fairness = 1 - (valueDiff / avgValue);
-                
+
                 if (fairness > 0.7 && myPlayer.value > 3 && theirPlayer.value > 3) {
                   // Calculate impact on both teams
                   const myImpact = theirPlayer.value - myPlayer.value;
                   const theirImpact = myPlayer.value - theirPlayer.value;
-                  
+
                   // Check if trade helps both teams
                   const myWeakPosAvg = myPositionStrength[weakPos]?.avgValue || 0;
                   const theirWeakPosAvg = theirPositionStrength[strongPos]?.avgValue || 0;
-                  
+
                   const helpsMeMore = theirPlayer.value > myWeakPosAvg;
                   const helpsThemMore = myPlayer.value > theirWeakPosAvg;
-                  
+
                   if (helpsMeMore || helpsThemMore || fairness > 0.85) {
                     tradeSuggestions.push({
                       teamId: otherTeam.id,
@@ -932,10 +935,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           });
         });
       });
-      
+
       // Sort by score and return top suggestions
       tradeSuggestions.sort((a, b) => b.score - a.score);
-      
+
       res.json(tradeSuggestions.slice(0, 10));
     } catch (error) {
       console.error("Error fetching trade suggestions:", error);
@@ -948,14 +951,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const user = req.user as User;
       await storage.deleteUser(user.id);
-      
+
       // Destroy session
       req.session.destroy((err) => {
         if (err) {
           console.error("Error destroying session:", err);
         }
       });
-      
+
       res.json({ message: "Account deleted successfully" });
     } catch (error) {
       console.error("Error deleting account:", error);
@@ -971,11 +974,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 function getCurrentNFLWeek(): number {
   const now = new Date();
   const currentYear = now.getFullYear();
-  
+
   // NFL season typically starts first Thursday after Labor Day (first Monday in September)
   // For simplicity, we'll use early September as the season start
   const seasonStartYear = now.getMonth() >= 8 ? currentYear : currentYear - 1; // September or later = current year, else previous year
-  
+
   // Week start dates for current season (adjust year dynamically)
   const weekStarts = [
     new Date(`${seasonStartYear}-09-05`), // Week 1 (approximate)
@@ -997,14 +1000,14 @@ function getCurrentNFLWeek(): number {
     new Date(`${seasonStartYear}-12-23`), // Week 17
     new Date(`${seasonStartYear}-12-30`), // Week 18
   ];
-  
+
   // Find the current week
   for (let i = weekStarts.length - 1; i >= 0; i--) {
     if (now >= weekStarts[i]) {
       return i + 1; // Week number is index + 1
     }
   }
-  
+
   // Before season starts or after season ends
   return 1;
 }
