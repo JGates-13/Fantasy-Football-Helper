@@ -8,6 +8,7 @@ import Landing from "@/pages/landing";
 import Login from "@/pages/login";
 import Signup from "@/pages/signup";
 import Home from "@/pages/home";
+import LeagueView from "@/pages/league-view";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -28,6 +29,7 @@ function Router() {
     <Switch>
       <Route path="/login" component={Login} />
       <Route path="/signup" component={Signup} />
+      <Route path="/league/:id" component={LeagueView} />
       {!isAuthenticated ? (
         <Route path="/" component={Landing} />
       ) : (

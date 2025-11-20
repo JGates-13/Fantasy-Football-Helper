@@ -145,6 +145,122 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ESPN Data routes
+  app.get('/api/leagues/:id/matchups', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user as User;
+      const { id } = req.params;
+      const { week } = req.query;
+
+      // Verify the league belongs to the user
+      const league = await storage.getLeagueById(id);
+      if (!league) {
+        return res.status(404).json({ message: "League not found" });
+      }
+      if (league.userId !== user.id) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+
+      const currentWeek = week ? parseInt(week as string) : getCurrentNFLWeek();
+      const espnClient = new Client({ leagueId: parseInt(league.leagueId) });
+
+      let boxscores;
+      try {
+        let timeoutId: NodeJS.Timeout;
+        const timeoutPromise = new Promise((_, reject) => {
+          timeoutId = setTimeout(() => reject(new Error('ESPN API request timed out')), 15000);
+        });
+
+        try {
+          boxscores = await Promise.race([
+            espnClient.getBoxscoreForWeek({
+              seasonId: league.seasonId,
+              scoringPeriodId: currentWeek,
+              matchupPeriodId: currentWeek,
+            }),
+            timeoutPromise
+          ]);
+        } finally {
+          clearTimeout(timeoutId!);
+        }
+      } catch (espnError: any) {
+        console.error("ESPN API error fetching matchups:", espnError);
+        return res.status(500).json({ message: "Failed to fetch matchups from ESPN" });
+      }
+
+      res.json({ week: currentWeek, matchups: boxscores });
+    } catch (error) {
+      console.error("Error fetching matchups:", error);
+      res.status(500).json({ message: "Failed to fetch matchups" });
+    }
+  });
+
+  app.get('/api/leagues/:id/teams', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user as User;
+      const { id } = req.params;
+      const { week } = req.query;
+
+      // Verify the league belongs to the user
+      const league = await storage.getLeagueById(id);
+      if (!league) {
+        return res.status(404).json({ message: "League not found" });
+      }
+      if (league.userId !== user.id) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+
+      const currentWeek = week ? parseInt(week as string) : getCurrentNFLWeek();
+      const espnClient = new Client({ leagueId: parseInt(league.leagueId) });
+
+      let teams;
+      try {
+        let timeoutId: NodeJS.Timeout;
+        const timeoutPromise = new Promise((_, reject) => {
+          timeoutId = setTimeout(() => reject(new Error('ESPN API request timed out')), 15000);
+        });
+
+        try {
+          teams = await Promise.race([
+            espnClient.getTeamsAtWeek({
+              seasonId: league.seasonId,
+              scoringPeriodId: currentWeek,
+            }),
+            timeoutPromise
+          ]);
+        } finally {
+          clearTimeout(timeoutId!);
+        }
+      } catch (espnError: any) {
+        console.error("ESPN API error fetching teams:", espnError);
+        return res.status(500).json({ message: "Failed to fetch teams from ESPN" });
+      }
+
+      res.json({ week: currentWeek, teams });
+    } catch (error) {
+      console.error("Error fetching teams:", error);
+      res.status(500).json({ message: "Failed to fetch teams" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
+}
+
+// Helper function to get current NFL week (approximate)
+function getCurrentNFLWeek(): number {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth(); // 0-indexed
+  
+  // NFL season typically starts in early September
+  if (month < 8) return 1; // Before September
+  if (month > 11) return 18; // After December (playoffs/offseason)
+  
+  // Approximate week based on date
+  const seasonStart = new Date(year, 8, 5); // ~September 5
+  const daysDiff = Math.floor((now.getTime() - seasonStart.getTime()) / (1000 * 60 * 60 * 24));
+  const week = Math.min(Math.max(Math.floor(daysDiff / 7) + 1, 1), 18);
+  
+  return week;
 }

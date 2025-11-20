@@ -203,7 +203,7 @@ export default function Home() {
                   <CardTitle>Currently Selected League</CardTitle>
                 </div>
               </CardHeader>
-              <CardContent>
+              <CardContent className="space-y-4">
                 <div className="space-y-2">
                   <p className="text-lg font-semibold text-foreground" data-testid="text-selected-league-name">
                     {selectedLeague.leagueName}
@@ -221,6 +221,13 @@ export default function Home() {
                     )}
                   </div>
                 </div>
+                <Button
+                  onClick={() => setLocation(`/league/${selectedLeague.id}`)}
+                  className="w-full"
+                  data-testid="button-view-league"
+                >
+                  View Matchups & Rosters
+                </Button>
               </CardContent>
             </Card>
           )}
@@ -327,16 +334,25 @@ export default function Home() {
                         )}
                       </CardDescription>
                     </CardHeader>
-                    <CardContent>
+                    <CardContent className="space-y-2">
                       {league.isSelected === 1 ? (
-                        <Button 
-                          variant="secondary" 
-                          className="w-full"
-                          disabled
-                          data-testid={`button-selected-${league.id}`}
-                        >
-                          Selected
-                        </Button>
+                        <>
+                          <Button 
+                            onClick={() => setLocation(`/league/${league.id}`)}
+                            className="w-full"
+                            data-testid={`button-view-${league.id}`}
+                          >
+                            View League
+                          </Button>
+                          <Button 
+                            variant="secondary" 
+                            className="w-full"
+                            disabled
+                            data-testid={`button-selected-${league.id}`}
+                          >
+                            Selected
+                          </Button>
+                        </>
                       ) : (
                         <Button 
                           onClick={() => handleSelectLeague(league.id)}

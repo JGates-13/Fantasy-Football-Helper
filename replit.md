@@ -2,7 +2,14 @@
 
 ## Overview
 
-Fantasy League Manager is a full-stack web application that allows users to connect and manage their ESPN Fantasy Football leagues in a centralized dashboard. The application provides authentication, league connection via ESPN's API, and a clean interface for viewing and organizing multiple fantasy leagues.
+Fantasy League Manager is a full-stack web application that allows users to connect and manage their ESPN Fantasy Football leagues in a centralized dashboard. The application provides username/password authentication, league connection via ESPN's API, and real-time viewing of weekly matchups and team rosters.
+
+Users can:
+- Create an account with username/password authentication
+- Connect multiple ESPN Fantasy Football leagues
+- Select a league to view detailed information
+- View weekly matchups with scores for all teams
+- Browse team rosters and player statistics
 
 The application is built as a modern single-page application (SPA) with a clear separation between client and server, using TypeScript throughout for type safety.
 
@@ -33,9 +40,10 @@ Preferred communication style: Simple, everyday language.
 
 **Routing Structure**
 - `/` - Landing page (unauthenticated) or Home dashboard (authenticated)
-- `/login` - User login page
-- `/signup` - User registration page
-- Protected routes automatically redirect based on authentication state
+- `/login` - User login page with username/password
+- `/signup` - User registration page with username/password
+- `/league/:id` - League detail page showing matchups and team rosters (protected)
+- All protected routes require authentication and redirect to login if not authenticated
 
 ### Backend Architecture
 
@@ -46,15 +54,21 @@ Preferred communication style: Simple, everyday language.
 
 **API Design**
 - RESTful API endpoints under `/api` prefix
-- Authentication endpoints: `/api/login`, `/api/signup`, `/api/auth/user`
-- League endpoints: `/api/leagues`, `/api/leagues/connect`
+- Authentication endpoints: `/api/login`, `/api/signup`, `/api/logout`, `/api/auth/user`
+- League management: `/api/leagues`, `/api/leagues/connect`, `/api/leagues/:id/select`
+- ESPN data endpoints: `/api/leagues/:id/matchups`, `/api/leagues/:id/teams`
+- All protected endpoints verify authentication and league ownership before returning data
 - Middleware for authentication verification on protected routes
 
 **Authentication & Security**
-- Username/password authentication with bcrypt hashing (10 salt rounds)
-- Express sessions with secure cookie configuration
+- Custom username/password authentication system (no external auth provider)
+- Passport.js local strategy for authentication
+- bcrypt password hashing with 10 salt rounds
+- Express sessions with PostgreSQL storage
+- Secure cookie configuration with httpOnly, sameSite: "lax"
 - CSRF protection through SameSite cookie policy
 - Session TTL of 7 days
+- All user operations verify ownership before allowing access
 
 **Data Layer**
 - Drizzle ORM for type-safe database queries
@@ -95,10 +109,15 @@ Preferred communication style: Simple, everyday language.
   - Connection string required in `DATABASE_URL` environment variable
 
 **External APIs**
-- **ESPN Fantasy Football API**: League data retrieval
-  - Accessed via `espn-fantasy-football-api` Node.js client
-  - Requires CommonJS module loading (createRequire wrapper)
-  - Used to fetch league information by ID and season
+- **ESPN Fantasy Football API**: Real-time fantasy football data
+  - Accessed via `espn-fantasy-football-api` Node.js client (CommonJS)
+  - Endpoints used:
+    - `getLeagueInfo()`: League metadata (name, size, season)
+    - `getBoxscoreForWeek()`: Weekly matchup scores and results
+    - `getTeamsAtWeek()`: Team rosters and player statistics
+  - Supports only public ESPN leagues (private leagues require cookies)
+  - All API calls wrapped in timeout protection (10-15 seconds)
+  - Automatic current NFL week calculation for default data queries
 
 **Authentication & Session Management**
 - **Passport.js**: Authentication middleware framework
@@ -117,11 +136,32 @@ Preferred communication style: Simple, everyday language.
 - **ESBuild**: Server-side bundling for production
 
 **Environment Variables Required**
-- `DATABASE_URL`: PostgreSQL connection string
-- `SESSION_SECRET`: Secret key for session encryption
+- `DATABASE_URL`: PostgreSQL connection string (Neon serverless database)
+- `SESSION_SECRET`: Secret key for session encryption and signing
 - `NODE_ENV`: Environment flag (development/production)
+- `PORT`: Server port (defaults to 5000)
 
 **Design System**
 - Inter font family from Google Fonts
 - Custom CSS variables for theming
 - Dark mode as default with light mode support
+## Recent Changes
+
+**November 20, 2024**
+- Migrated from Replit Auth to custom username/password authentication
+  - Added username and password fields to users table
+  - Implemented Passport.js local strategy authentication
+  - Created login and signup pages with form validation
+  - Added bcrypt password hashing for security
+  - Configured secure session cookies with sameSite protection
+- Added ESPN Fantasy Football data features
+  - Created backend routes for fetching weekly matchups
+  - Created backend routes for fetching team rosters
+  - Built LeagueView page with tabs for Matchups and Team Rosters
+  - Implemented real-time data fetching from ESPN API
+  - Added automatic NFL week calculation for current data
+  - Integrated proper error handling and loading states
+- Updated navigation
+  - Added /league/:id route for viewing league details
+  - Updated home page with "View League" buttons
+  - Improved user experience with better league selection flow
