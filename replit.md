@@ -147,7 +147,47 @@ Preferred communication style: Simple, everyday language.
 - Dark mode as default with light mode support
 ## Recent Changes
 
-**November 20, 2024 (Latest) - Major Feature Update**
+**November 20, 2024 (Latest) - Advanced Features & Polish**
+- **Accurate NFL Week Calculation**
+  - Implemented schedule-based week detection using actual 2024 NFL calendar
+  - Week start dates from Sept 5 (Week 1) through Dec 30 (Week 18)
+  - Correctly displays Week 12 for November 18-24
+  - Future-proof approach that can be updated annually
+
+- **Intelligent Waiver Wire Recommendations** (`/api/waiver-wire/:id`)
+  - Analyzes user's actual roster to identify weak positions (players averaging < 8 PPG)
+  - Fetches trending player additions from Sleeper API (48-hour window)
+  - Scores waiver candidates based on:
+    * Trending add count (base score)
+    * Position need bonus (+100 for weak positions)
+    * Performance multiplier (10x weekly average)
+  - Returns top 25 personalized recommendations with clear reasoning
+  - Real-time data from both ESPN (user roster) and Sleeper (player stats)
+
+- **Comprehensive Trade Finder** (`/api/trade-suggestions/:id`)
+  - Multi-step analysis system:
+    1. Fetches all league teams and current rosters from ESPN
+    2. Retrieves player performance stats from Sleeper API
+    3. Analyzes position strength for user's team (identifies best 3 at each position)
+    4. Compares against all other teams in the league
+    5. Finds mutually beneficial trades (weak position upgrades for both sides)
+  - Advanced trade evaluation:
+    * Identifies tradeable players (2nd/3rd best at each position)
+    * Calculates trade fairness (total value difference)
+    * Computes impact scores (+/- PPG for both teams)
+    * Generates detailed reasoning for each suggestion
+  - Returns top 10 balanced trade proposals
+  - Only suggests trades where both teams improve weak positions
+
+- **Enhanced UI Design**
+  - **Team Page**: Improved roster display with prominent point totals, clear borders, position badges
+  - **Matchup View**: Visual score comparison with win/lose indicators, team records
+  - **Rankings Page**: Larger player cards, primary color highlighting for top 3 ranked players
+  - **Trade Finder Tab**: Color-coded give/get sections, impact scores with +/- indicators
+  - **Waiver Wire Tab**: Recommendation cards with personalized reasoning and trending metrics
+  - Consistent spacing, borders, and visual hierarchy across all pages
+
+**November 20, 2024 (Earlier) - Major Feature Update**
 - **Complete 5-tab bottom navigation system** implemented
   - Navigation bar with Home, Rankings, Team, League, and Account tabs
   - Active tab highlighting and smooth transitions between pages
@@ -185,8 +225,8 @@ Preferred communication style: Simple, everyday language.
 
 - **Backend API Enhancements**
   - `/api/rankings` - Fetches and organizes Sleeper API rankings by position
-  - `/api/waiver-wire` - Returns trending player additions from Sleeper
-  - `/api/trade-suggestions/:id` - Framework for trade analysis (basic implementation)
+  - `/api/waiver-wire/:id` - Intelligent waiver recommendations based on roster analysis
+  - `/api/trade-suggestions/:id` - Comprehensive trade finder with fairness calculations
   - `DELETE /api/account` - Secure account deletion with cascade delete
   - All endpoints include proper authentication and error handling
   - Timeout protection on external API calls (10-15 seconds)
