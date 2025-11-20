@@ -213,7 +213,7 @@ export default function Home() {
               </div>
               <h1 className="text-lg font-semibold text-foreground">Fantasy Manager</h1>
             </div>
-            
+
             {user && (
               <Avatar className="w-8 h-8">
                 <AvatarImage src={user.profileImageUrl || undefined} className="object-cover" />

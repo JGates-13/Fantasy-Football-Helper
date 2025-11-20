@@ -33,8 +33,13 @@ const NFL_TEAM_NAMES: Record<number, string> = {
 
 // Helper function to process roster data
 function processRoster(roster: any[]): any[] {
+  if (!roster || !Array.isArray(roster)) {
+    return [];
+  }
+
   return roster.map((playerSlot: any) => {
-    const player = playerSlot.player || {};
+    // Extract player data from various possible locations in ESPN response
+    const player = playerSlot.player || playerSlot.playerPoolEntry?.player || {};
     const nflTeamId = player.proTeamId || player.proTeam;
     const opponentTeamId = player.opponentProTeamId;
     
@@ -47,12 +52,6 @@ function processRoster(roster: any[]): any[] {
       // For defenses/special teams, use team abbreviation with D/ST
       playerName = `${NFL_TEAM_NAMES[nflTeamId]} D/ST`;
     }
-    // Fallback for players without proTeamId (free agents, etc.)
-    if (!playerName && playerSlot.playerPoolEntry?.player) {
-      const poolPlayer = playerSlot.playerPoolEntry.player;
-      playerName = poolPlayer.fullName || 
-        (poolPlayer.firstName && poolPlayer.lastName ? `${poolPlayer.firstName} ${poolPlayer.lastName}` : null);
-    }
     if (!playerName && player.lastName) {
       // Last resort: use just last name if available
       playerName = player.lastName;
@@ -61,16 +60,28 @@ function processRoster(roster: any[]): any[] {
       playerName = 'Empty Slot';
     }
     
+    // Get position from multiple sources
+    let position = LINEUP_SLOT_LABELS[playerSlot.lineupSlotId];
+    if (!position && player.defaultPositionId) {
+      position = LINEUP_SLOT_LABELS[player.defaultPositionId];
+    }
+    if (!position && player.eligibleSlots && player.eligibleSlots.length > 0) {
+      position = LINEUP_SLOT_LABELS[player.eligibleSlots[0]];
+    }
+    if (!position) {
+      position = 'UNKNOWN';
+    }
+    
     return {
       playerName,
-      position: LINEUP_SLOT_LABELS[playerSlot.lineupSlotId] || player.defaultPositionId || 'UNKNOWN',
+      position,
       lineupSlotId: playerSlot.lineupSlotId,
       isStarter: playerSlot.lineupSlotId !== 20 && playerSlot.lineupSlotId !== 21,
       totalPoints: playerSlot.totalPoints || 0,
       projectedPoints: playerSlot.projectedPoints || 0,
       nflTeam: NFL_TEAM_NAMES[nflTeamId] || '',
       opponent: opponentTeamId ? NFL_TEAM_NAMES[opponentTeamId] : null,
-      playerId: player.playerId || null,
+      playerId: player.playerId || player.id || null,
       playerPosition: player.defaultPositionId ? LINEUP_SLOT_LABELS[player.defaultPositionId] : null,
     };
   }).sort((a, b) => {
@@ -385,7 +396,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(500).json({ message: "Failed to fetch teams from ESPN" });
       }
 
-      res.json({ week: currentWeek, teams });
+      // Process roster data for each team
+      const processedTeams = teams.map((team: any) => ({
+        ...team,
+        roster: processRoster(team.roster || []),
+      }));
+
+      res.json({ week: currentWeek, teams: processedTeams });
     } catch (error) {
       console.error("Error fetching teams:", error);
       res.status(500).json({ message: "Failed to fetch teams" });
