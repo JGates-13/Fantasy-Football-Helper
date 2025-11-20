@@ -47,6 +47,7 @@ export const espnLeagues = pgTable("espn_leagues", {
   seasonId: integer("season_id").notNull(),
   leagueName: text("league_name").notNull(),
   teamCount: integer("team_count"),
+  userTeamId: integer("user_team_id"),
   isSelected: integer("is_selected").default(0),
   createdAt: timestamp("created_at").defaultNow(),
 });

@@ -21,6 +21,7 @@ export interface IStorage {
   getLeagueById(id: string): Promise<EspnLeague | undefined>;
   createLeague(league: InsertEspnLeague): Promise<EspnLeague>;
   selectLeague(userId: string, leagueId: string): Promise<void>;
+  updateUserTeam(userId: string, leagueId: string, teamId: number): Promise<void>;
   checkLeagueExists(userId: string, leagueId: string, seasonId: number): Promise<boolean>;
 }
 
@@ -95,6 +96,16 @@ export class DatabaseStorage implements IStorage {
     await db
       .update(espnLeagues)
       .set({ isSelected: 1 })
+      .where(and(
+        eq(espnLeagues.id, leagueId),
+        eq(espnLeagues.userId, userId)
+      ));
+  }
+
+  async updateUserTeam(userId: string, leagueId: string, teamId: number): Promise<void> {
+    await db
+      .update(espnLeagues)
+      .set({ userTeamId: teamId })
       .where(and(
         eq(espnLeagues.id, leagueId),
         eq(espnLeagues.userId, userId)
