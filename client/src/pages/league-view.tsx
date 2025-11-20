@@ -25,7 +25,7 @@ export default function LeagueView() {
   const { data: matchupsData, isLoading: matchupsLoading, error: matchupsError } = useQuery({
     queryKey: [`/api/leagues/${id}/matchups`, selectedWeek],
     queryFn: async () => {
-      const url = selectedWeek 
+      const url = selectedWeek
         ? `/api/leagues/${id}/matchups?week=${selectedWeek}`
         : `/api/leagues/${id}/matchups`;
       const response = await fetch(url, {
@@ -42,7 +42,7 @@ export default function LeagueView() {
   const { data: teamsData, isLoading: teamsLoading, error: teamsError } = useQuery({
     queryKey: [`/api/leagues/${id}/teams`, selectedWeek],
     queryFn: async () => {
-      const url = selectedWeek 
+      const url = selectedWeek
         ? `/api/leagues/${id}/teams?week=${selectedWeek}`
         : `/api/leagues/${id}/teams`;
       const response = await fetch(url, {
@@ -298,6 +298,13 @@ export default function LeagueView() {
           <TabsContent value="rosters" className="space-y-6">
             <div className="flex items-center justify-between">
               <h2 className="text-2xl font-semibold text-foreground">Team Rosters</h2>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setLocation("/home")}
+              >
+                Select Team
+              </Button>
             </div>
 
             {teamsLoading ? (
@@ -350,7 +357,7 @@ export default function LeagueView() {
                           Roster ({team.roster?.length || 0} players)
                         </p>
                         <div className="max-h-64 overflow-y-auto space-y-2">
-                          {team.roster?.slice(0, 10).map((player: any, pIdx: number) => (
+                          {team.roster?.map((player: any, pIdx: number) => (
                             <div
                               key={pIdx}
                               className="flex items-center justify-between text-sm p-2 rounded-md bg-muted/50"

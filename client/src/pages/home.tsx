@@ -359,33 +359,59 @@ export default function Home() {
                                 <span>{league.teamCount} Teams</span>
                               </div>
                             )}
+                            {league.userTeamId && (
+                              <div className="flex items-center gap-1">
+                                <UserCheck className="w-3 h-3" />
+                                <span>Team #{league.userTeamId}</span>
+                              </div>
+                            )}
                           </div>
                         </div>
                         {league.isSelected === 1 && (
                           <div className="w-2 h-2 bg-primary rounded-full"></div>
                         )}
                       </div>
-                      {league.isSelected === 1 ? (
-                        <Button 
-                          onClick={() => setLocation(`/league/${league.id}`)}
-                          className="w-full"
-                          size="sm"
-                          data-testid={`button-view-${league.id}`}
-                        >
-                          View League
-                        </Button>
-                      ) : (
-                        <Button 
-                          onClick={() => handleSelectLeague(league.id)}
-                          disabled={selectLeagueMutation.isPending}
-                          variant="outline"
-                          size="sm"
-                          className="w-full"
-                          data-testid={`button-select-${league.id}`}
-                        >
-                          Select League
-                        </Button>
-                      )}
+                      <div className="space-y-2">
+                        {!league.userTeamId && (
+                          <Button
+                            onClick={() => setTeamSelectionDialog({
+                              open: true,
+                              leagueDbId: league.id,
+                              leagueEspnId: league.leagueId,
+                              seasonId: league.seasonId,
+                            })}
+                            variant="default"
+                            size="sm"
+                            className="w-full"
+                            data-testid={`button-select-team-${league.id}`}
+                          >
+                            <UserCheck className="w-4 h-4 mr-2" />
+                            Select Your Team
+                          </Button>
+                        )}
+                        {league.isSelected === 1 ? (
+                          <Button 
+                            onClick={() => setLocation(`/league/${league.id}`)}
+                            className="w-full"
+                            size="sm"
+                            variant={league.userTeamId ? "default" : "outline"}
+                            data-testid={`button-view-${league.id}`}
+                          >
+                            View League
+                          </Button>
+                        ) : (
+                          <Button 
+                            onClick={() => handleSelectLeague(league.id)}
+                            disabled={selectLeagueMutation.isPending}
+                            variant="outline"
+                            size="sm"
+                            className="w-full"
+                            data-testid={`button-select-${league.id}`}
+                          >
+                            Select League
+                          </Button>
+                        )}
+                      </div>
                     </CardContent>
                   </Card>
                 ))}
