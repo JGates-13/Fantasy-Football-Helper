@@ -1,5 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -11,9 +12,10 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { isUnauthorizedError } from "@/lib/authUtils";
 import { Trophy, Link2, Plus, LogOut, Users, Calendar } from "lucide-react";
-import type { EspnLeague } from "@shared/schema";
+import type { EspnLeague, User } from "@shared/schema";
 
 export default function Home() {
+  const [, setLocation] = useLocation();
   const { toast } = useToast();
   const { user, isLoading: authLoading } = useAuth();
   const [leagueId, setLeagueId] = useState("");
@@ -35,7 +37,7 @@ export default function Home() {
       variant: "destructive",
     });
     setTimeout(() => {
-      window.location.href = "/api/login";
+      setLocation("/login");
     }, 1000);
   }
 
@@ -59,7 +61,7 @@ export default function Home() {
           variant: "destructive",
         });
         setTimeout(() => {
-          window.location.href = "/api/login";
+          setLocation("/login");
         }, 500);
         return;
       }
@@ -90,7 +92,7 @@ export default function Home() {
           variant: "destructive",
         });
         setTimeout(() => {
-          window.location.href = "/api/login";
+          setLocation("/login");
         }, 500);
         return;
       }
@@ -117,6 +119,24 @@ export default function Home() {
 
   const handleSelectLeague = (leagueDbId: string) => {
     selectLeagueMutation.mutate(leagueDbId);
+  };
+
+  const logoutMutation = useMutation({
+    mutationFn: async () => {
+      return await apiRequest("POST", "/api/logout", {});
+    },
+    onSuccess: () => {
+      queryClient.clear();
+      setLocation("/");
+    },
+    onError: () => {
+      queryClient.clear();
+      setLocation("/");
+    },
+  });
+
+  const handleLogout = () => {
+    logoutMutation.mutate();
   };
 
   if (authLoading) {
@@ -150,18 +170,19 @@ export default function Home() {
                   <Avatar className="w-8 h-8">
                     <AvatarImage src={user.profileImageUrl || undefined} className="object-cover" />
                     <AvatarFallback className="bg-accent text-accent-foreground text-sm">
-                      {user.firstName?.[0] || user.email?.[0] || 'U'}
+                      {user.username?.[0]?.toUpperCase() || user.firstName?.[0] || user.email?.[0] || 'U'}
                     </AvatarFallback>
                   </Avatar>
                   <span className="text-sm text-foreground hidden sm:inline" data-testid="text-user-name">
-                    {user.firstName || user.email}
+                    {user.username || user.firstName || user.email}
                   </span>
                 </div>
               )}
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => window.location.href = '/api/logout'}
+                onClick={handleLogout}
+                disabled={logoutMutation.isPending}
                 data-testid="button-logout"
               >
                 <LogOut className="w-4 h-4 mr-2" />

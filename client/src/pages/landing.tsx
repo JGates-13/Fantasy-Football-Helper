@@ -1,8 +1,11 @@
+import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Trophy, Link2, TrendingUp, Users } from "lucide-react";
 
 export default function Landing() {
+  const [, setLocation] = useLocation();
+
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <header className="border-b border-border">
@@ -13,12 +16,21 @@ export default function Landing() {
             </div>
             <h1 className="text-xl font-semibold text-foreground">Fantasy League Manager</h1>
           </div>
-          <Button 
-            onClick={() => window.location.href = '/api/login'}
-            data-testid="button-login"
-          >
-            Sign In
-          </Button>
+          <div className="flex gap-2">
+            <Button 
+              variant="outline"
+              onClick={() => setLocation('/login')}
+              data-testid="button-login"
+            >
+              Log In
+            </Button>
+            <Button 
+              onClick={() => setLocation('/signup')}
+              data-testid="button-signup"
+            >
+              Sign Up
+            </Button>
+          </div>
         </div>
       </header>
 
@@ -34,7 +46,7 @@ export default function Landing() {
             <div className="flex justify-center pt-4">
               <Button 
                 size="lg"
-                onClick={() => window.location.href = '/api/login'}
+                onClick={() => setLocation('/signup')}
                 className="h-12 px-8 text-base"
                 data-testid="button-get-started"
               >

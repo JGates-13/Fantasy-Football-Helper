@@ -1,8 +1,9 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { setupAuth, isAuthenticated } from "./replitAuth";
+import { setupAuth, isAuthenticated } from "./auth";
 import { createRequire } from "module";
+import type { User } from "@shared/schema";
 
 // ESPN API doesn't support ES modules, use createRequire
 const require = createRequire(import.meta.url);
@@ -13,11 +14,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   await setupAuth(app);
 
   // Auth routes
-  app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
+  app.get('/api/auth/user', isAuthenticated, async (req, res) => {
     try {
-      const userId = req.user.claims.sub;
-      const user = await storage.getUser(userId);
-      res.json(user);
+      const user = req.user as User;
+      // Return user without password
+      const { password: _, ...userWithoutPassword } = user;
+      res.json(userWithoutPassword);
     } catch (error) {
       console.error("Error fetching user:", error);
       res.status(500).json({ message: "Failed to fetch user" });
@@ -25,10 +27,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // League routes
-  app.get('/api/leagues', isAuthenticated, async (req: any, res) => {
+  app.get('/api/leagues', isAuthenticated, async (req, res) => {
     try {
-      const userId = req.user.claims.sub;
-      const leagues = await storage.getLeaguesByUserId(userId);
+      const user = req.user as User;
+      const leagues = await storage.getLeaguesByUserId(user.id);
       res.json(leagues);
     } catch (error) {
       console.error("Error fetching leagues:", error);
@@ -36,9 +38,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/leagues/connect', isAuthenticated, async (req: any, res) => {
+  app.post('/api/leagues/connect', isAuthenticated, async (req, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const user = req.user as User;
+      const userId = user.id;
       const { leagueId, seasonId } = req.body;
 
       if (!leagueId || !seasonId) {
@@ -119,9 +122,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/leagues/:id/select', isAuthenticated, async (req: any, res) => {
+  app.post('/api/leagues/:id/select', isAuthenticated, async (req, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const user = req.user as User;
+      const userId = user.id;
       const { id } = req.params;
 
       // Verify the league belongs to the user
