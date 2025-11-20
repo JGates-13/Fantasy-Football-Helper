@@ -107,95 +107,159 @@ export default function LeagueView() {
   const teams = teamsData?.teams || [];
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background pb-20">
       <header className="border-b border-border sticky top-0 bg-background z-50">
-        <div className="container mx-auto px-6 py-4">
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-4">
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setLocation("/")}
-                data-testid="button-back"
-              >
-                <ArrowLeft className="w-5 h-5" />
-              </Button>
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-primary rounded-md flex items-center justify-center">
-                  <Trophy className="w-6 h-6 text-primary-foreground" />
-                </div>
-                <div>
-                  <h1 className="text-xl font-semibold text-foreground" data-testid="text-league-name">
-                    {league.leagueName}
-                  </h1>
-                  <p className="text-sm text-muted-foreground">
-                    {league.seasonId} Season • Week {currentWeek}
-                  </p>
-                </div>
+        <div className="container mx-auto px-4 py-3">
+          <div className="flex items-center gap-3">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setLocation("/")}
+              data-testid="button-back"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </Button>
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 bg-primary rounded-md flex items-center justify-center">
+                <Trophy className="w-5 h-5 text-primary-foreground" />
+              </div>
+              <div>
+                <h1 className="text-lg font-semibold text-foreground" data-testid="text-league-name">
+                  {league.leagueName}
+                </h1>
+                <p className="text-xs text-muted-foreground">
+                  Week {currentWeek}
+                </p>
               </div>
             </div>
           </div>
         </div>
       </header>
 
-      <main className="container mx-auto px-6 py-8 max-w-7xl">
+      <main className="container mx-auto px-4 py-4 max-w-7xl">
         <Tabs defaultValue="matchups" className="space-y-6">
           <TabsList className="grid w-full max-w-md grid-cols-2">
             <TabsTrigger value="matchups" data-testid="tab-matchups">Matchups</TabsTrigger>
             <TabsTrigger value="rosters" data-testid="tab-rosters">Team Rosters</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="matchups" className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h2 className="text-2xl font-semibold text-foreground">Week {currentWeek} Matchups</h2>
-            </div>
+          <TabsContent value="matchups" className="space-y-4">
+            <h2 className="text-xl font-semibold text-foreground">Week {currentWeek} Matchups</h2>
 
             {matchupsLoading ? (
-              <div className="grid gap-6">
+              <div className="grid gap-4">
                 {[1, 2, 3].map((i) => (
                   <Card key={i}>
-                    <CardContent className="p-6">
+                    <CardContent className="p-4">
                       <Skeleton className="h-24 w-full" />
                     </CardContent>
                   </Card>
                 ))}
               </div>
             ) : matchups.length > 0 ? (
-              <div className="grid gap-6">
+              <div className="space-y-6">
                 {matchups.map((matchup: any, idx: number) => (
-                  <Card key={idx} className="hover-elevate" data-testid={`card-matchup-${idx}`}>
-                    <CardContent className="p-6">
-                      <div className="grid md:grid-cols-3 gap-6 items-center">
-                        <div className="flex flex-col items-center md:items-end text-center md:text-right space-y-2">
-                          <p className="font-semibold text-lg text-foreground" data-testid={`text-home-team-${idx}`}>
+                  <Card key={idx} data-testid={`card-matchup-${idx}`}>
+                    <CardContent className="p-0">
+                      {/* Matchup Header */}
+                      <div className="grid md:grid-cols-2 gap-4 p-4 border-b border-border">
+                        <div className="flex flex-col items-center text-center space-y-1">
+                          <p className="font-semibold text-base text-foreground" data-testid={`text-home-team-${idx}`}>
                             {matchup.homeTeam?.name || `Team ${matchup.homeTeamId}`}
                           </p>
-                          <p className="text-3xl font-bold text-primary" data-testid={`text-home-score-${idx}`}>
+                          <p className="text-2xl font-bold text-primary" data-testid={`text-home-score-${idx}`}>
                             {matchup.homeScore?.toFixed(2) || '0.00'}
                           </p>
                           {matchup.homeTeam?.record && (
-                            <p className="text-sm text-muted-foreground">
+                            <p className="text-xs text-muted-foreground">
                               {matchup.homeTeam.wins}-{matchup.homeTeam.losses}
                             </p>
                           )}
                         </div>
 
-                        <div className="flex items-center justify-center">
-                          <span className="text-2xl font-bold text-muted-foreground">VS</span>
-                        </div>
-
-                        <div className="flex flex-col items-center md:items-start text-center md:text-left space-y-2">
-                          <p className="font-semibold text-lg text-foreground" data-testid={`text-away-team-${idx}`}>
+                        <div className="flex flex-col items-center text-center space-y-1">
+                          <p className="font-semibold text-base text-foreground" data-testid={`text-away-team-${idx}`}>
                             {matchup.awayTeam?.name || `Team ${matchup.awayTeamId}`}
                           </p>
-                          <p className="text-3xl font-bold text-primary" data-testid={`text-away-score-${idx}`}>
+                          <p className="text-2xl font-bold text-primary" data-testid={`text-away-score-${idx}`}>
                             {matchup.awayScore?.toFixed(2) || '0.00'}
                           </p>
                           {matchup.awayTeam?.record && (
-                            <p className="text-sm text-muted-foreground">
+                            <p className="text-xs text-muted-foreground">
                               {matchup.awayTeam.wins}-{matchup.awayTeam.losses}
                             </p>
                           )}
+                        </div>
+                      </div>
+
+                      {/* Player Rosters */}
+                      <div className="grid md:grid-cols-2 divide-x divide-border">
+                        {/* Home Team Roster */}
+                        <div className="p-4 space-y-3">
+                          <h3 className="text-sm font-semibold text-foreground mb-2">Roster</h3>
+                          <div className="space-y-1">
+                            {matchup.homeRoster?.map((player: any, pIdx: number) => (
+                              <div
+                                key={pIdx}
+                                className={`flex items-center justify-between text-xs p-2 rounded ${
+                                  player.isStarter
+                                    ? 'bg-primary/10 border border-primary/20'
+                                    : 'bg-muted/30'
+                                }`}
+                                data-testid={`player-home-${idx}-${pIdx}`}
+                              >
+                                <div className="flex items-center gap-2 flex-1 min-w-0">
+                                  <span className={`font-semibold text-[10px] px-1.5 py-0.5 rounded ${
+                                    player.isStarter
+                                      ? 'bg-primary text-primary-foreground'
+                                      : 'bg-muted-foreground/20 text-muted-foreground'
+                                  }`}>
+                                    {player.position}
+                                  </span>
+                                  <span className="font-medium text-foreground truncate">
+                                    {player.playerName}
+                                  </span>
+                                </div>
+                                <span className="font-semibold text-foreground ml-2">
+                                  {player.totalPoints?.toFixed(1) || '0.0'}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Away Team Roster */}
+                        <div className="p-4 space-y-3">
+                          <h3 className="text-sm font-semibold text-foreground mb-2">Roster</h3>
+                          <div className="space-y-1">
+                            {matchup.awayRoster?.map((player: any, pIdx: number) => (
+                              <div
+                                key={pIdx}
+                                className={`flex items-center justify-between text-xs p-2 rounded ${
+                                  player.isStarter
+                                    ? 'bg-primary/10 border border-primary/20'
+                                    : 'bg-muted/30'
+                                }`}
+                                data-testid={`player-away-${idx}-${pIdx}`}
+                              >
+                                <div className="flex items-center gap-2 flex-1 min-w-0">
+                                  <span className={`font-semibold text-[10px] px-1.5 py-0.5 rounded ${
+                                    player.isStarter
+                                      ? 'bg-primary text-primary-foreground'
+                                      : 'bg-muted-foreground/20 text-muted-foreground'
+                                  }`}>
+                                    {player.position}
+                                  </span>
+                                  <span className="font-medium text-foreground truncate">
+                                    {player.playerName}
+                                  </span>
+                                </div>
+                                <span className="font-semibold text-foreground ml-2">
+                                  {player.totalPoints?.toFixed(1) || '0.0'}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
                         </div>
                       </div>
                     </CardContent>

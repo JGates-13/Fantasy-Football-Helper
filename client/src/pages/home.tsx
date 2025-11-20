@@ -153,72 +153,54 @@ export default function Home() {
   const selectedLeague = leagues?.find((l) => l.isSelected === 1);
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background pb-20">
       <header className="border-b border-border">
-        <div className="container mx-auto px-6 py-4">
+        <div className="container mx-auto px-4 py-3">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-primary rounded-md flex items-center justify-center">
-                <Trophy className="w-6 h-6 text-primary-foreground" />
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 bg-primary rounded-md flex items-center justify-center">
+                <Trophy className="w-5 h-5 text-primary-foreground" />
               </div>
-              <h1 className="text-xl font-semibold text-foreground">Fantasy League Manager</h1>
+              <h1 className="text-lg font-semibold text-foreground">Fantasy Manager</h1>
             </div>
             
-            <div className="flex items-center gap-4">
-              {user && (
-                <div className="flex items-center gap-3">
-                  <Avatar className="w-8 h-8">
-                    <AvatarImage src={user.profileImageUrl || undefined} className="object-cover" />
-                    <AvatarFallback className="bg-accent text-accent-foreground text-sm">
-                      {user.username?.[0]?.toUpperCase() || user.firstName?.[0] || user.email?.[0] || 'U'}
-                    </AvatarFallback>
-                  </Avatar>
-                  <span className="text-sm text-foreground hidden sm:inline" data-testid="text-user-name">
-                    {user.username || user.firstName || user.email}
-                  </span>
-                </div>
-              )}
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleLogout}
-                disabled={logoutMutation.isPending}
-                data-testid="button-logout"
-              >
-                <LogOut className="w-4 h-4 mr-2" />
-                Log Out
-              </Button>
-            </div>
+            {user && (
+              <Avatar className="w-8 h-8">
+                <AvatarImage src={user.profileImageUrl || undefined} className="object-cover" />
+                <AvatarFallback className="bg-primary text-primary-foreground text-sm">
+                  {user.username?.[0]?.toUpperCase() || user.firstName?.[0] || user.email?.[0] || 'U'}
+                </AvatarFallback>
+              </Avatar>
+            )}
           </div>
         </div>
       </header>
 
-      <main className="container mx-auto px-6 py-12 max-w-6xl">
-        <div className="space-y-8">
+      <main className="container mx-auto px-4 py-6 max-w-6xl">
+        <div className="space-y-6">
           {selectedLeague && (
             <Card className="border-primary">
-              <CardHeader>
-                <div className="flex items-center gap-2">
-                  <Trophy className="w-5 h-5 text-primary" />
-                  <CardTitle>Currently Selected League</CardTitle>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <p className="text-lg font-semibold text-foreground" data-testid="text-selected-league-name">
-                    {selectedLeague.leagueName}
-                  </p>
-                  <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
-                    <div className="flex items-center gap-2">
-                      <Calendar className="w-4 h-4" />
-                      <span>Season {selectedLeague.seasonId}</span>
-                    </div>
-                    {selectedLeague.teamCount && (
-                      <div className="flex items-center gap-2">
-                        <Users className="w-4 h-4" />
-                        <span>{selectedLeague.teamCount} Teams</span>
+              <CardContent className="p-4">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-10 h-10 bg-primary/10 rounded-md flex items-center justify-center">
+                    <Trophy className="w-6 h-6 text-primary" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-semibold text-foreground" data-testid="text-selected-league-name">
+                      {selectedLeague.leagueName}
+                    </p>
+                    <div className="flex flex-wrap gap-3 text-xs text-muted-foreground mt-1">
+                      <div className="flex items-center gap-1">
+                        <Calendar className="w-3 h-3" />
+                        <span>{selectedLeague.seasonId}</span>
                       </div>
-                    )}
+                      {selectedLeague.teamCount && (
+                        <div className="flex items-center gap-1">
+                          <Users className="w-3 h-3" />
+                          <span>{selectedLeague.teamCount} Teams</span>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
                 <Button
@@ -226,45 +208,39 @@ export default function Home() {
                   className="w-full"
                   data-testid="button-view-league"
                 >
-                  View Matchups & Rosters
+                  View League
                 </Button>
               </CardContent>
             </Card>
           )}
 
           <Card>
-            <CardHeader>
+            <CardHeader className="pb-3">
               <div className="flex items-center gap-2">
-                <Link2 className="w-5 h-5 text-primary" />
-                <CardTitle>Connect ESPN League</CardTitle>
+                <Plus className="w-5 h-5 text-primary" />
+                <CardTitle className="text-base">Connect ESPN League</CardTitle>
               </div>
-              <CardDescription>
-                Enter your ESPN Fantasy Football league ID and season year to connect your league.
-              </CardDescription>
             </CardHeader>
             <CardContent>
-              <form onSubmit={handleConnectLeague} className="space-y-4">
-                <div className="grid md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="leagueId">League ID</Label>
+              <form onSubmit={handleConnectLeague} className="space-y-3">
+                <div className="grid md:grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="leagueId" className="text-sm">League ID</Label>
                     <Input
                       id="leagueId"
-                      placeholder="e.g., 123456"
+                      placeholder="123456"
                       value={leagueId}
                       onChange={(e) => setLeagueId(e.target.value)}
                       disabled={connectLeagueMutation.isPending}
                       data-testid="input-league-id"
                     />
-                    <p className="text-xs text-muted-foreground">
-                      Find this in your ESPN league URL
-                    </p>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="seasonId">Season Year</Label>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="seasonId" className="text-sm">Season Year</Label>
                     <Input
                       id="seasonId"
                       type="number"
-                      placeholder="e.g., 2024"
+                      placeholder="2024"
                       value={seasonId}
                       onChange={(e) => setSeasonId(e.target.value)}
                       disabled={connectLeagueMutation.isPending}
@@ -275,6 +251,7 @@ export default function Home() {
                 <Button 
                   type="submit" 
                   disabled={connectLeagueMutation.isPending}
+                  className="w-full"
                   data-testid="button-connect-league"
                 >
                   {connectLeagueMutation.isPending ? (
@@ -284,7 +261,7 @@ export default function Home() {
                     </>
                   ) : (
                     <>
-                      <Plus className="w-4 h-4 mr-2" />
+                      <Link2 className="w-4 h-4 mr-2" />
                       Connect League
                     </>
                   )}
@@ -294,15 +271,13 @@ export default function Home() {
           </Card>
 
           <div>
-            <h2 className="text-2xl font-semibold text-foreground mb-6">Your Leagues</h2>
+            <h2 className="text-xl font-semibold text-foreground mb-4">My Leagues</h2>
             {leaguesLoading ? (
-              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="grid md:grid-cols-2 gap-4">
                 {[1, 2, 3].map((i) => (
                   <Card key={i}>
-                    <CardHeader>
-                      <Skeleton className="h-6 w-3/4" />
-                    </CardHeader>
-                    <CardContent>
+                    <CardContent className="p-4">
+                      <Skeleton className="h-6 w-3/4 mb-2" />
                       <Skeleton className="h-4 w-full mb-2" />
                       <Skeleton className="h-4 w-2/3" />
                     </CardContent>
@@ -310,53 +285,51 @@ export default function Home() {
                 ))}
               </div>
             ) : leagues && leagues.length > 0 ? (
-              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="grid md:grid-cols-2 gap-4">
                 {leagues.map((league) => (
                   <Card 
                     key={league.id} 
-                    className={`hover-elevate transition-all ${league.isSelected === 1 ? 'border-primary' : ''}`}
+                    className={`hover-elevate ${league.isSelected === 1 ? 'border-primary' : ''}`}
                     data-testid={`card-league-${league.id}`}
                   >
-                    <CardHeader>
-                      <CardTitle className="text-lg" data-testid={`text-league-name-${league.id}`}>
-                        {league.leagueName}
-                      </CardTitle>
-                      <CardDescription className="flex flex-col gap-1">
-                        <div className="flex items-center gap-2">
-                          <Calendar className="w-4 h-4" />
-                          <span>Season {league.seasonId}</span>
-                        </div>
-                        {league.teamCount && (
-                          <div className="flex items-center gap-2">
-                            <Users className="w-4 h-4" />
-                            <span>{league.teamCount} Teams</span>
+                    <CardContent className="p-4">
+                      <div className="flex items-start justify-between gap-2 mb-3">
+                        <div className="flex-1">
+                          <p className="font-semibold text-foreground mb-1" data-testid={`text-league-name-${league.id}`}>
+                            {league.leagueName}
+                          </p>
+                          <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+                            <div className="flex items-center gap-1">
+                              <Calendar className="w-3 h-3" />
+                              <span>{league.seasonId}</span>
+                            </div>
+                            {league.teamCount && (
+                              <div className="flex items-center gap-1">
+                                <Users className="w-3 h-3" />
+                                <span>{league.teamCount} Teams</span>
+                              </div>
+                            )}
                           </div>
+                        </div>
+                        {league.isSelected === 1 && (
+                          <div className="w-2 h-2 bg-primary rounded-full"></div>
                         )}
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-2">
+                      </div>
                       {league.isSelected === 1 ? (
-                        <>
-                          <Button 
-                            onClick={() => setLocation(`/league/${league.id}`)}
-                            className="w-full"
-                            data-testid={`button-view-${league.id}`}
-                          >
-                            View League
-                          </Button>
-                          <Button 
-                            variant="secondary" 
-                            className="w-full"
-                            disabled
-                            data-testid={`button-selected-${league.id}`}
-                          >
-                            Selected
-                          </Button>
-                        </>
+                        <Button 
+                          onClick={() => setLocation(`/league/${league.id}`)}
+                          className="w-full"
+                          size="sm"
+                          data-testid={`button-view-${league.id}`}
+                        >
+                          View League
+                        </Button>
                       ) : (
                         <Button 
                           onClick={() => handleSelectLeague(league.id)}
                           disabled={selectLeagueMutation.isPending}
+                          variant="outline"
+                          size="sm"
                           className="w-full"
                           data-testid={`button-select-${league.id}`}
                         >
@@ -370,11 +343,11 @@ export default function Home() {
             ) : (
               <Card>
                 <CardContent className="py-12 text-center">
-                  <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
-                    <Trophy className="w-8 h-8 text-muted-foreground" />
+                  <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Trophy className="w-8 h-8 text-primary" />
                   </div>
-                  <h3 className="text-lg font-semibold text-foreground mb-2">No Leagues Connected</h3>
-                  <p className="text-muted-foreground mb-6">
+                  <h3 className="text-base font-semibold text-foreground mb-2">No Leagues Connected</h3>
+                  <p className="text-sm text-muted-foreground">
                     Connect your first ESPN Fantasy Football league to get started
                   </p>
                 </CardContent>
