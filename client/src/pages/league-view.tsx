@@ -360,27 +360,38 @@ export default function LeagueView() {
                           {team.roster?.map((player: any, pIdx: number) => (
                             <div
                               key={pIdx}
-                              className="flex items-center justify-between text-sm p-2 rounded-md bg-muted/50"
+                              className={`flex items-center justify-between text-sm p-2 rounded-md ${
+                                player.isStarter
+                                  ? 'bg-primary/10 border border-primary/20'
+                                  : 'bg-muted/50'
+                              }`}
                               data-testid={`player-${idx}-${pIdx}`}
                             >
-                              <div className="flex items-center gap-2">
-                                <span className="font-medium text-foreground">
-                                  {player.player?.fullName || 'Unknown Player'}
-                                </span>
-                                <span className="text-xs text-muted-foreground">
+                              <div className="flex items-center gap-2 flex-1 min-w-0">
+                                <span className={`font-semibold text-[10px] px-1.5 py-0.5 rounded whitespace-nowrap ${
+                                  player.isStarter
+                                    ? 'bg-primary text-primary-foreground'
+                                    : 'bg-muted-foreground/20 text-muted-foreground'
+                                }`}>
                                   {player.position}
                                 </span>
+                                <div className="flex flex-col flex-1 min-w-0">
+                                  <span className="font-medium text-foreground truncate">
+                                    {player.playerName || 'Empty Slot'}
+                                  </span>
+                                  {(player.nflTeam || player.opponent) && (
+                                    <span className="text-[10px] text-muted-foreground">
+                                      {player.nflTeam}
+                                      {player.opponent && ` vs ${player.opponent}`}
+                                    </span>
+                                  )}
+                                </div>
                               </div>
-                              <span className="text-muted-foreground">
+                              <span className="font-semibold text-foreground ml-2">
                                 {player.totalPoints?.toFixed(1) || '0.0'}
                               </span>
                             </div>
                           ))}
-                          {team.roster?.length > 10 && (
-                            <p className="text-xs text-muted-foreground text-center pt-2">
-                              +{team.roster.length - 10} more players
-                            </p>
-                          )}
                         </div>
                       </div>
                     </CardContent>
