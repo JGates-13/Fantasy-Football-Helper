@@ -196,6 +196,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post('/api/leagues/:id/set-team', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user as User;
+      const userId = user.id;
+      const { id } = req.params;
+      const { teamId } = req.body;
+
+      if (!teamId) {
+        return res.status(400).json({ message: "Team ID is required" });
+      }
+
+      // Verify the league belongs to the user
+      const league = await storage.getLeagueById(id);
+      if (!league) {
+        return res.status(404).json({ message: "League not found" });
+      }
+      if (league.userId !== userId) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+
+      await storage.updateUserTeam(userId, id, parseInt(teamId));
+      res.json({ message: "Team selected successfully" });
+    } catch (error) {
+      console.error("Error setting user team:", error);
+      res.status(500).json({ message: "Failed to set team" });
+    }
+  });
+
   // ESPN Data routes
   app.get('/api/leagues/:id/matchups', isAuthenticated, async (req, res) => {
     try {
