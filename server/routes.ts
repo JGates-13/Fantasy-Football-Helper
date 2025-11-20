@@ -38,12 +38,11 @@ function processRoster(roster: any[]): any[] {
     const opponentTeamId = player.opponentProTeamId;
     
     return {
-      playerName: player.fullName || player.firstName && player.lastName 
-        ? `${player.firstName} ${player.lastName}` 
-        : 'Unknown Player',
+      playerName: player.fullName || 
+        (player.firstName && player.lastName ? `${player.firstName} ${player.lastName}` : 'Unknown Player'),
       position: LINEUP_SLOT_LABELS[playerSlot.lineupSlotId] || player.defaultPositionId || 'UNKNOWN',
       lineupSlotId: playerSlot.lineupSlotId,
-      isStarter: playerSlot.lineupSlotId !== 20 && playerSlot.lineupSlotId !== 21, // Not bench or IR
+      isStarter: playerSlot.lineupSlotId !== 20 && playerSlot.lineupSlotId !== 21,
       totalPoints: playerSlot.totalPoints || 0,
       projectedPoints: playerSlot.projectedPoints || 0,
       nflTeam: NFL_TEAM_NAMES[nflTeamId] || '',
