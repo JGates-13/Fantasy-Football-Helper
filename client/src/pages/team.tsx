@@ -193,7 +193,7 @@ export default function Team() {
                 <CardContent className="space-y-2">
                   {teamsLoading ? (
                     Array.from({ length: 9 }).map((_, i) => (
-                      <Skeleton key={i} className="h-20 w-full" />
+                      <Skeleton key={i} className="h-24 w-full" />
                     ))
                   ) : starters.length > 0 ? (
                     starters.map((player: any, index: number) => (
@@ -214,8 +214,18 @@ export default function Team() {
                           </div>
                         </div>
                         <div className="text-right shrink-0 ml-2">
-                          <p className="text-lg font-bold text-primary">{player.totalPoints?.toFixed(1) || '0.0'}</p>
-                          <p className="text-xs text-muted-foreground">points</p>
+                          <div className="flex flex-col items-end gap-1">
+                            <div>
+                              <p className="text-lg font-bold text-primary">{player.totalPoints?.toFixed(1) || '0.0'}</p>
+                              <p className="text-xs text-muted-foreground">actual</p>
+                            </div>
+                            <div className="border-t pt-1">
+                              <p className="text-sm font-semibold text-blue-600 dark:text-blue-400">
+                                {player.projectedPoints?.toFixed(1) || '0.0'}
+                              </p>
+                              <p className="text-xs text-muted-foreground">projected</p>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     ))
@@ -277,60 +287,151 @@ export default function Team() {
               {matchupsLoading ? (
                 <Skeleton className="h-64 w-full" />
               ) : myMatchup ? (
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="flex items-center gap-2">
-                      <Trophy className="w-5 h-5" />
-                      Week {currentWeek} Matchup
-                    </CardTitle>
-                    <CardDescription>
-                      {myTeam?.wins || 0}-{myTeam?.losses || 0}-{myTeam?.ties || 0} overall record
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid grid-cols-3 gap-6 items-center text-center mb-6">
-                      <div className="space-y-3">
-                        <p className="font-semibold text-foreground text-lg" data-testid="text-my-team">{myTeam?.name || 'My Team'}</p>
-                        <p className="text-4xl font-bold text-primary" data-testid="text-my-score">
-                          {isHomeTeam ? myMatchup.homeScore?.toFixed(1) : myMatchup.awayScore?.toFixed(1)}
-                        </p>
-                        <p className="text-sm text-muted-foreground">Your Score</p>
-                      </div>
-                      <div>
-                        <div className="text-2xl font-bold text-muted-foreground bg-muted/30 rounded-full w-16 h-16 flex items-center justify-center mx-auto">
-                          VS
+                <>
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="flex items-center gap-2">
+                        <Trophy className="w-5 h-5" />
+                        Week {currentWeek} Matchup
+                      </CardTitle>
+                      <CardDescription>
+                        {myTeam?.wins || 0}-{myTeam?.losses || 0}-{myTeam?.ties || 0} overall record
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="grid grid-cols-3 gap-6 items-center text-center mb-6">
+                        <div className="space-y-3">
+                          <p className="font-semibold text-foreground text-lg" data-testid="text-my-team">{myTeam?.name || 'My Team'}</p>
+                          <p className="text-4xl font-bold text-primary" data-testid="text-my-score">
+                            {isHomeTeam ? myMatchup.homeScore?.toFixed(1) : myMatchup.awayScore?.toFixed(1)}
+                          </p>
+                          <p className="text-sm text-muted-foreground">Current Score</p>
+                          <p className="text-lg font-semibold text-blue-600 dark:text-blue-400">
+                            {(() => {
+                              const myRoster = isHomeTeam ? myMatchup.homeRoster : myMatchup.awayRoster;
+                              const myProjected = myRoster?.filter((p: any) => p.isStarter)
+                                .reduce((sum: number, p: any) => sum + (p.projectedPoints || 0), 0) || 0;
+                              return myProjected.toFixed(1);
+                            })()}
+                          </p>
+                          <p className="text-xs text-muted-foreground">Projected</p>
+                        </div>
+                        <div className="space-y-2">
+                          <div className="text-2xl font-bold text-muted-foreground bg-muted/30 rounded-full w-16 h-16 flex items-center justify-center mx-auto">
+                            VS
+                          </div>
+                          {(() => {
+                            const myRoster = isHomeTeam ? myMatchup.homeRoster : myMatchup.awayRoster;
+                            const oppRoster = isHomeTeam ? myMatchup.awayRoster : myMatchup.homeRoster;
+                            const myProjected = myRoster?.filter((p: any) => p.isStarter)
+                              .reduce((sum: number, p: any) => sum + (p.projectedPoints || 0), 0) || 0;
+                            const oppProjected = oppRoster?.filter((p: any) => p.isStarter)
+                              .reduce((sum: number, p: any) => sum + (p.projectedPoints || 0), 0) || 0;
+                            const totalProjected = myProjected + oppProjected;
+                            const winProbability = totalProjected > 0 ? (myProjected / totalProjected * 100) : 50;
+                            
+                            return (
+                              <div className="mt-4">
+                                <div className="text-3xl font-bold text-primary">
+                                  {winProbability.toFixed(0)}%
+                                </div>
+                                <p className="text-xs text-muted-foreground mt-1">Win Probability</p>
+                              </div>
+                            );
+                          })()}
+                        </div>
+                        <div className="space-y-3">
+                          <p className="font-semibold text-foreground text-lg" data-testid="text-opponent">{opponentTeam?.name || 'Opponent'}</p>
+                          <p className="text-4xl font-bold text-muted-foreground" data-testid="text-opponent-score">
+                            {isHomeTeam ? myMatchup.awayScore?.toFixed(1) : myMatchup.homeScore?.toFixed(1)}
+                          </p>
+                          <p className="text-sm text-muted-foreground">Current Score</p>
+                          <p className="text-lg font-semibold text-blue-600 dark:text-blue-400">
+                            {(() => {
+                              const oppRoster = isHomeTeam ? myMatchup.awayRoster : myMatchup.homeRoster;
+                              const oppProjected = oppRoster?.filter((p: any) => p.isStarter)
+                                .reduce((sum: number, p: any) => sum + (p.projectedPoints || 0), 0) || 0;
+                              return oppProjected.toFixed(1);
+                            })()}
+                          </p>
+                          <p className="text-xs text-muted-foreground">Projected</p>
                         </div>
                       </div>
-                      <div className="space-y-3">
-                        <p className="font-semibold text-foreground text-lg" data-testid="text-opponent">{opponentTeam?.name || 'Opponent'}</p>
-                        <p className="text-4xl font-bold text-muted-foreground" data-testid="text-opponent-score">
-                          {isHomeTeam ? myMatchup.awayScore?.toFixed(1) : myMatchup.homeScore?.toFixed(1)}
-                        </p>
-                        <p className="text-sm text-muted-foreground">Opponent Score</p>
+                      {myMatchup.homeScore !== undefined && myMatchup.awayScore !== undefined && (
+                        <div className="text-center">
+                          <Badge 
+                            variant={
+                              (isHomeTeam ? myMatchup.homeScore > myMatchup.awayScore : myMatchup.awayScore > myMatchup.homeScore)
+                                ? "default"
+                                : myMatchup.homeScore === myMatchup.awayScore
+                                ? "outline"
+                                : "secondary"
+                            }
+                            className="text-base px-4 py-1"
+                          >
+                            {isHomeTeam && myMatchup.homeScore > myMatchup.awayScore && "You're Winning!"}
+                            {isHomeTeam && myMatchup.homeScore < myMatchup.awayScore && "You're Losing"}
+                            {!isHomeTeam && myMatchup.awayScore > myMatchup.homeScore && "You're Winning!"}
+                            {!isHomeTeam && myMatchup.awayScore < myMatchup.homeScore && "You're Losing"}
+                            {myMatchup.homeScore === myMatchup.awayScore && "It's Tied!"}
+                          </Badge>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-lg">Starting Lineup Comparison</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="grid md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <h3 className="font-semibold text-sm text-muted-foreground mb-3">Your Starters</h3>
+                          {(() => {
+                            const myRoster = isHomeTeam ? myMatchup.homeRoster : myMatchup.awayRoster;
+                            return myRoster?.filter((p: any) => p.isStarter).map((player: any, idx: number) => (
+                              <div key={idx} className="flex items-center justify-between p-2 rounded-md bg-primary/10 border border-primary/20 text-sm">
+                                <div className="flex items-center gap-2 flex-1 min-w-0">
+                                  <Badge variant="default" className="text-xs shrink-0">{player.position}</Badge>
+                                  <div className="flex flex-col min-w-0">
+                                    <span className="font-medium truncate">{player.playerName}</span>
+                                    <span className="text-xs text-muted-foreground">{player.nflTeam}</span>
+                                  </div>
+                                </div>
+                                <div className="text-right shrink-0 ml-2">
+                                  <p className="font-bold text-primary">{player.totalPoints?.toFixed(1)}</p>
+                                  <p className="text-xs text-muted-foreground">({player.projectedPoints?.toFixed(1)})</p>
+                                </div>
+                              </div>
+                            ));
+                          })()}
+                        </div>
+                        <div className="space-y-2">
+                          <h3 className="font-semibold text-sm text-muted-foreground mb-3">Opponent Starters</h3>
+                          {(() => {
+                            const oppRoster = isHomeTeam ? myMatchup.awayRoster : myMatchup.homeRoster;
+                            return oppRoster?.filter((p: any) => p.isStarter).map((player: any, idx: number) => (
+                              <div key={idx} className="flex items-center justify-between p-2 rounded-md bg-muted/50 border text-sm">
+                                <div className="flex items-center gap-2 flex-1 min-w-0">
+                                  <Badge variant="outline" className="text-xs shrink-0">{player.position}</Badge>
+                                  <div className="flex flex-col min-w-0">
+                                    <span className="font-medium truncate">{player.playerName}</span>
+                                    <span className="text-xs text-muted-foreground">{player.nflTeam}</span>
+                                  </div>
+                                </div>
+                                <div className="text-right shrink-0 ml-2">
+                                  <p className="font-bold">{player.totalPoints?.toFixed(1)}</p>
+                                  <p className="text-xs text-muted-foreground">({player.projectedPoints?.toFixed(1)})</p>
+                                </div>
+                              </div>
+                            ));
+                          })()}
+                        </div>
                       </div>
-                    </div>
-                    {myMatchup.homeScore !== undefined && myMatchup.awayScore !== undefined && (
-                      <div className="text-center">
-                        <Badge 
-                          variant={
-                            (isHomeTeam ? myMatchup.homeScore > myMatchup.awayScore : myMatchup.awayScore > myMatchup.homeScore)
-                              ? "default"
-                              : myMatchup.homeScore === myMatchup.awayScore
-                              ? "outline"
-                              : "secondary"
-                          }
-                          className="text-base px-4 py-1"
-                        >
-                          {isHomeTeam && myMatchup.homeScore > myMatchup.awayScore && "You're Winning!"}
-                          {isHomeTeam && myMatchup.homeScore < myMatchup.awayScore && "You're Losing"}
-                          {!isHomeTeam && myMatchup.awayScore > myMatchup.homeScore && "You're Winning!"}
-                          {!isHomeTeam && myMatchup.awayScore < myMatchup.homeScore && "You're Losing"}
-                          {myMatchup.homeScore === myMatchup.awayScore && "It's Tied!"}
-                        </Badge>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
+                    </CardContent>
+                  </Card>
+                </>
               ) : (
                 <Card>
                   <CardContent className="py-16 text-center">
