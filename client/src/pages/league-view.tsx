@@ -209,16 +209,24 @@ export default function LeagueView() {
                                 data-testid={`player-home-${idx}-${pIdx}`}
                               >
                                 <div className="flex items-center gap-2 flex-1 min-w-0">
-                                  <span className={`font-semibold text-[10px] px-1.5 py-0.5 rounded ${
+                                  <span className={`font-semibold text-[10px] px-1.5 py-0.5 rounded whitespace-nowrap ${
                                     player.isStarter
                                       ? 'bg-primary text-primary-foreground'
                                       : 'bg-muted-foreground/20 text-muted-foreground'
                                   }`}>
                                     {player.position}
                                   </span>
-                                  <span className="font-medium text-foreground truncate">
-                                    {player.playerName}
-                                  </span>
+                                  <div className="flex flex-col flex-1 min-w-0">
+                                    <span className="font-medium text-foreground truncate">
+                                      {player.playerName}
+                                    </span>
+                                    {(player.nflTeam || player.opponent) && (
+                                      <span className="text-[10px] text-muted-foreground">
+                                        {player.nflTeam}
+                                        {player.opponent && ` vs ${player.opponent}`}
+                                      </span>
+                                    )}
+                                  </div>
                                 </div>
                                 <span className="font-semibold text-foreground ml-2">
                                   {player.totalPoints?.toFixed(1) || '0.0'}
@@ -243,16 +251,24 @@ export default function LeagueView() {
                                 data-testid={`player-away-${idx}-${pIdx}`}
                               >
                                 <div className="flex items-center gap-2 flex-1 min-w-0">
-                                  <span className={`font-semibold text-[10px] px-1.5 py-0.5 rounded ${
+                                  <span className={`font-semibold text-[10px] px-1.5 py-0.5 rounded whitespace-nowrap ${
                                     player.isStarter
                                       ? 'bg-primary text-primary-foreground'
                                       : 'bg-muted-foreground/20 text-muted-foreground'
                                   }`}>
                                     {player.position}
                                   </span>
-                                  <span className="font-medium text-foreground truncate">
-                                    {player.playerName}
-                                  </span>
+                                  <div className="flex flex-col flex-1 min-w-0">
+                                    <span className="font-medium text-foreground truncate">
+                                      {player.playerName}
+                                    </span>
+                                    {(player.nflTeam || player.opponent) && (
+                                      <span className="text-[10px] text-muted-foreground">
+                                        {player.nflTeam}
+                                        {player.opponent && ` vs ${player.opponent}`}
+                                      </span>
+                                    )}
+                                  </div>
                                 </div>
                                 <span className="font-semibold text-foreground ml-2">
                                   {player.totalPoints?.toFixed(1) || '0.0'}

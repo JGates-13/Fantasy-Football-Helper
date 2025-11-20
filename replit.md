@@ -147,7 +147,25 @@ Preferred communication style: Simple, everyday language.
 - Dark mode as default with light mode support
 ## Recent Changes
 
-**November 20, 2024**
+**November 20, 2024 (Latest)**
+- Enhanced player display in matchups
+  - Updated backend to extract complete player data including NFL team and opponent information
+  - Added NFL team ID to abbreviation mapping for all 32 teams
+  - Player cards now show: player name, NFL team, opponent matchup (e.g., "GB vs CHI")
+  - Enhanced position display with both lineup slot and player's actual position
+  - Improved data extraction to handle various ESPN API player object structures
+- Added bottom navigation bar
+  - Created fixed bottom navigation with Home, Profile, and Rankings icons
+  - Navigation highlights active page and league sub-routes
+  - Conditionally rendered only for authenticated users
+  - Added proper padding to all pages to prevent content overlap
+- UI modernization improvements
+  - Streamlined header designs across all pages
+  - Improved card layouts with better information density
+  - Enhanced league selection flow with visual indicators
+  - Better responsive design for mobile devices
+
+**November 20, 2024 (Earlier)**
 - Migrated from Replit Auth to custom username/password authentication
   - Added username and password fields to users table
   - Implemented Passport.js local strategy authentication
@@ -155,12 +173,13 @@ Preferred communication style: Simple, everyday language.
   - Added bcrypt password hashing for security
   - Configured secure session cookies with sameSite protection
 - Added ESPN Fantasy Football data features
-  - Created backend routes for fetching weekly matchups
+  - Created backend routes for fetching weekly matchups with full player rosters
   - Created backend routes for fetching team rosters
   - Built LeagueView page with tabs for Matchups and Team Rosters
   - Implemented real-time data fetching from ESPN API
   - Added automatic NFL week calculation for current data
   - Integrated proper error handling and loading states
+  - Player data includes starter/bench designation, positions, and points
 - Updated navigation
   - Added /league/:id route for viewing league details
   - Updated home page with "View League" buttons
