@@ -9,9 +9,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { isUnauthorizedError } from "@/lib/authUtils";
-import { Trophy, Link2, Plus, LogOut, Users, Calendar } from "lucide-react";
+import { Trophy, Link2, Plus, LogOut, Users, Calendar, UserCheck } from "lucide-react";
 import type { EspnLeague, User } from "@shared/schema";
 
 export default function Home() {
@@ -20,13 +27,27 @@ export default function Home() {
   const { user, isLoading: authLoading } = useAuth();
   const [leagueId, setLeagueId] = useState("");
   const [seasonId, setSeasonId] = useState(new Date().getFullYear().toString());
+  const [teamSelectionDialog, setTeamSelectionDialog] = useState<{
+    open: boolean;
+    leagueDbId: string;
+    leagueEspnId: string;
+    seasonId: number;
+  }>({ open: false, leagueDbId: "", leagueEspnId: "", seasonId: 0 });
 
   // Removed automatic redirect - the router handles showing landing page for unauthenticated users
 
   const { data: leagues, isLoading: leaguesLoading, error: leaguesError } = useQuery<EspnLeague[]>({
     queryKey: ["/api/leagues"],
     retry: false,
-    enabled: !!user, // Only fetch leagues when user is authenticated
+    enabled: !!user,
+  });
+
+  const { data: teamsData, isLoading: teamsLoading } = useQuery<{
+    teams: any[];
+    week: number;
+  }>({
+    queryKey: ["/api/leagues", teamSelectionDialog.leagueDbId, "teams"],
+    enabled: teamSelectionDialog.open && !!teamSelectionDialog.leagueDbId,
   });
 
   // Handle auth errors in leagues query
@@ -41,16 +62,23 @@ export default function Home() {
     }, 1000);
   }
 
-  const connectLeagueMutation = useMutation({
+  const connectLeagueMutation = useMutation<EspnLeague, Error, { leagueId: string; seasonId: string }>({
     mutationFn: async (data: { leagueId: string; seasonId: string }) => {
-      return await apiRequest("POST", "/api/leagues/connect", data);
+      const response = await apiRequest("POST", "/api/leagues/connect", data);
+      return response as EspnLeague;
     },
-    onSuccess: () => {
+    onSuccess: (newLeague) => {
       queryClient.invalidateQueries({ queryKey: ["/api/leagues"] });
       setLeagueId("");
       toast({
         title: "Success",
         description: "League connected successfully!",
+      });
+      setTeamSelectionDialog({
+        open: true,
+        leagueDbId: newLeague.id,
+        leagueEspnId: newLeague.leagueId,
+        seasonId: newLeague.seasonId,
       });
     },
     onError: (error: Error) => {
@@ -99,6 +127,27 @@ export default function Home() {
       toast({
         title: "Error",
         description: "Failed to select league",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const setTeamMutation = useMutation({
+    mutationFn: async ({ leagueDbId, teamId }: { leagueDbId: string; teamId: number }) => {
+      return await apiRequest("POST", `/api/leagues/${leagueDbId}/set-team`, { teamId });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/leagues"] });
+      setTeamSelectionDialog({ open: false, leagueDbId: "", leagueEspnId: "", seasonId: 0 });
+      toast({
+        title: "Success",
+        description: "Your team has been saved!",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to save team selection",
         variant: "destructive",
       });
     },
@@ -354,8 +403,107 @@ export default function Home() {
               </Card>
             )}
           </div>
+
+          {leagues && leagues.length > 0 && (
+            <div>
+              <h2 className="text-xl font-semibold text-foreground mb-4">My Team</h2>
+              {leagues.some(l => l.userTeamId) ? (
+                <div className="grid md:grid-cols-2 gap-4">
+                  {leagues
+                    .filter(l => l.userTeamId)
+                    .map((league) => (
+                      <Card key={league.id} data-testid={`card-my-team-${league.id}`}>
+                        <CardContent className="p-4">
+                          <div className="flex items-center gap-2 mb-2">
+                            <UserCheck className="w-4 h-4 text-primary" />
+                            <p className="font-semibold text-foreground text-sm">
+                              {league.leagueName}
+                            </p>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            Team ID: {league.userTeamId}
+                          </p>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="w-full mt-3"
+                            onClick={() => setTeamSelectionDialog({
+                              open: true,
+                              leagueDbId: league.id,
+                              leagueEspnId: league.leagueId,
+                              seasonId: league.seasonId,
+                            })}
+                            data-testid={`button-change-team-${league.id}`}
+                          >
+                            Change Team
+                          </Button>
+                        </CardContent>
+                      </Card>
+                    ))}
+                </div>
+              ) : (
+                <Card>
+                  <CardContent className="py-8 text-center">
+                    <UserCheck className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+                    <p className="text-sm text-muted-foreground">
+                      Connect a league and select your team to see it here
+                    </p>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          )}
         </div>
       </main>
+
+      <Dialog open={teamSelectionDialog.open} onOpenChange={(open) => {
+        if (!open) {
+          setTeamSelectionDialog({ open: false, leagueDbId: "", leagueEspnId: "", seasonId: 0 });
+        }
+      }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Select Your Team</DialogTitle>
+            <DialogDescription>
+              Choose which team is yours in this league
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 max-h-96 overflow-y-auto">
+            {teamsLoading ? (
+              <div className="space-y-2">
+                {[1, 2, 3, 4].map((i) => (
+                  <Skeleton key={i} className="h-16 w-full" />
+                ))}
+              </div>
+            ) : teamsData?.teams && teamsData.teams.length > 0 ? (
+              teamsData.teams.map((team: any) => (
+                <Button
+                  key={team.id}
+                  variant="outline"
+                  className="w-full justify-start text-left h-auto p-3"
+                  onClick={() => setTeamMutation.mutate({ 
+                    leagueDbId: teamSelectionDialog.leagueDbId, 
+                    teamId: team.id 
+                  })}
+                  disabled={setTeamMutation.isPending}
+                  data-testid={`button-team-${team.id}`}
+                >
+                  <div className="flex flex-col gap-1">
+                    <span className="font-semibold">{team.name || `Team ${team.id}`}</span>
+                    <span className="text-xs text-muted-foreground">
+                      Owner: {team.owners?.[0]?.firstName || team.owners?.[0]?.displayName || 'Unknown'}
+                    </span>
+                  </div>
+                </Button>
+              ))
+            ) : (
+              <p className="text-sm text-muted-foreground text-center py-4">
+                No teams available
+              </p>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
