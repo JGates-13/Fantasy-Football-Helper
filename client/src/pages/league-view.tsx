@@ -37,6 +37,9 @@ export default function LeagueView() {
       return response.json();
     },
     enabled: !!id && !!league,
+    refetchOnWindowFocus: true,
+    refetchOnMount: true,
+    staleTime: 30000, // 30 seconds
   });
 
   const { data: teamsData, isLoading: teamsLoading, error: teamsError } = useQuery({
@@ -54,6 +57,9 @@ export default function LeagueView() {
       return response.json();
     },
     enabled: !!id && !!league,
+    refetchOnWindowFocus: true,
+    refetchOnMount: true,
+    staleTime: 30000, // 30 seconds
   });
 
   // Update selectedWeek when data is first loaded

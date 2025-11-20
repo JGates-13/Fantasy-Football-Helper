@@ -37,60 +37,100 @@ function processRoster(roster: any[]): any[] {
     return [];
   }
 
-  return roster.map((playerSlot: any) => {
-    // Extract player data from various possible locations in ESPN response
-    // ESPN API structure: roster entries can have player data in multiple places
-    let player = {};
+  return roster.map((entry: any) => {
+    // ESPN API has nested structure - need to dig deep
+    let player: any = null;
+    let playerSlot = entry;
     
-    if (playerSlot.playerPoolEntry?.player) {
-      player = playerSlot.playerPoolEntry.player;
-    } else if (playerSlot.player) {
-      player = playerSlot.player;
-    }
-    
-    const nflTeamId = (player as any).proTeamId || (player as any).proTeam;
-    const opponentTeamId = (player as any).opponentProTeamId;
-    
-    // Determine player name with multiple fallbacks
-    let playerName = (player as any).fullName;
-    if (!playerName && (player as any).firstName && (player as any).lastName) {
-      playerName = `${(player as any).firstName} ${(player as any).lastName}`;
-    }
-    if (!playerName && nflTeamId && NFL_TEAM_NAMES[nflTeamId]) {
-      // For defenses/special teams, use team abbreviation with D/ST
-      playerName = `${NFL_TEAM_NAMES[nflTeamId]} D/ST`;
-    }
-    if (!playerName && (player as any).lastName) {
-      // Last resort: use just last name if available
-      playerName = (player as any).lastName;
-    }
-    if (!playerName) {
-      playerName = 'Empty Slot';
+    // Try different paths to find player data
+    if (entry.playerPoolEntry?.player) {
+      player = entry.playerPoolEntry.player;
+    } else if (entry.player) {
+      player = entry.player;
+    } else if (entry.entry?.playerPoolEntry?.player) {
+      player = entry.entry.playerPoolEntry.player;
     }
     
-    // Get position from multiple sources
-    let position = LINEUP_SLOT_LABELS[playerSlot.lineupSlotId];
-    if (!position && (player as any).defaultPositionId) {
-      position = LINEUP_SLOT_LABELS[(player as any).defaultPositionId];
+    // If still no player, check if entry itself has player properties
+    if (!player && entry.fullName) {
+      player = entry;
     }
-    if (!position && (player as any).eligibleSlots && (player as any).eligibleSlots.length > 0) {
-      position = LINEUP_SLOT_LABELS[(player as any).eligibleSlots[0]];
+    
+    // Extract lineup slot ID from various locations
+    const lineupSlotId = entry.lineupSlotId ?? 
+                         entry.slot ?? 
+                         entry.lineupSlot ?? 
+                         entry.slotCategoryId ?? 
+                         20; // Default to bench
+    
+    // Get NFL team and opponent info
+    const nflTeamId = player?.proTeamId ?? player?.proTeam ?? null;
+    const opponentTeamId = player?.opponentProTeamId ?? null;
+    
+    // Determine player name with extensive fallbacks
+    let playerName = 'Empty Slot';
+    
+    if (player) {
+      // Try fullName first
+      if (player.fullName) {
+        playerName = player.fullName;
+      }
+      // Try firstName + lastName
+      else if (player.firstName && player.lastName) {
+        playerName = `${player.firstName} ${player.lastName}`;
+      }
+      // For defense/special teams (position 16 or proTeamId without a name)
+      else if (lineupSlotId === 16 && nflTeamId && NFL_TEAM_NAMES[nflTeamId]) {
+        playerName = `${NFL_TEAM_NAMES[nflTeamId]} D/ST`;
+      }
+      // Try just lastName
+      else if (player.lastName) {
+        playerName = player.lastName;
+      }
+      // If we have a proTeam but no name, might be D/ST
+      else if (nflTeamId && NFL_TEAM_NAMES[nflTeamId]) {
+        playerName = `${NFL_TEAM_NAMES[nflTeamId]} D/ST`;
+      }
     }
-    if (!position) {
-      position = 'UNKNOWN';
+    
+    // Get position label
+    let position = LINEUP_SLOT_LABELS[lineupSlotId] || 'SLOT';
+    
+    // Also try to get the actual player position if available
+    if (player?.defaultPositionId && LINEUP_SLOT_LABELS[player.defaultPositionId]) {
+      position = LINEUP_SLOT_LABELS[player.defaultPositionId];
+    } else if (player?.eligibleSlots && player.eligibleSlots.length > 0) {
+      const firstEligible = player.eligibleSlots[0];
+      if (LINEUP_SLOT_LABELS[firstEligible]) {
+        position = LINEUP_SLOT_LABELS[firstEligible];
+      }
     }
+    
+    // Extract points
+    const totalPoints = entry.totalPoints ?? 
+                       entry.points ?? 
+                       entry.appliedStatTotal ?? 
+                       player?.points ?? 
+                       0;
+    
+    const projectedPoints = entry.projectedPoints ?? 
+                           entry.currentPeriodProjectedStats ?? 
+                           player?.projectedPoints ?? 
+                           0;
     
     return {
       playerName,
       position,
-      lineupSlotId: playerSlot.lineupSlotId,
-      isStarter: playerSlot.lineupSlotId !== 20 && playerSlot.lineupSlotId !== 21,
-      totalPoints: playerSlot.totalPoints || 0,
-      projectedPoints: playerSlot.projectedPoints || 0,
-      nflTeam: NFL_TEAM_NAMES[nflTeamId] || '',
-      opponent: opponentTeamId ? NFL_TEAM_NAMES[opponentTeamId] : null,
-      playerId: (player as any).playerId || (player as any).id || null,
-      playerPosition: (player as any).defaultPositionId ? LINEUP_SLOT_LABELS[(player as any).defaultPositionId] : null,
+      lineupSlotId,
+      isStarter: lineupSlotId !== 20 && lineupSlotId !== 21, // 20=bench, 21=IR
+      totalPoints: parseFloat(totalPoints) || 0,
+      projectedPoints: parseFloat(projectedPoints) || 0,
+      nflTeam: nflTeamId && NFL_TEAM_NAMES[nflTeamId] ? NFL_TEAM_NAMES[nflTeamId] : '',
+      opponent: opponentTeamId && NFL_TEAM_NAMES[opponentTeamId] ? NFL_TEAM_NAMES[opponentTeamId] : null,
+      playerId: player?.playerId ?? player?.id ?? null,
+      playerPosition: player?.defaultPositionId && LINEUP_SLOT_LABELS[player.defaultPositionId] 
+        ? LINEUP_SLOT_LABELS[player.defaultPositionId] 
+        : null,
     };
   }).sort((a, b) => {
     // Sort starters first, then by lineup slot ID
@@ -349,6 +389,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(500).json({ message: "Failed to fetch matchups from ESPN" });
       }
 
+      // Debug: Log raw roster data from first matchup
+      if (boxscores && boxscores.length > 0 && boxscores[0].homeRoster && boxscores[0].homeRoster.length > 0) {
+        console.log("Sample raw roster entry from ESPN:", JSON.stringify(boxscores[0].homeRoster[0], null, 2));
+      }
+
       // Enhance boxscores with processed player roster data
       const enhancedMatchups = boxscores.map((boxscore: any) => ({
         ...boxscore,
@@ -402,6 +447,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } catch (espnError: any) {
         console.error("ESPN API error fetching teams:", espnError);
         return res.status(500).json({ message: "Failed to fetch teams from ESPN" });
+      }
+
+      // Debug: Log raw roster data from first team
+      if (teams && teams.length > 0 && teams[0].roster && teams[0].roster.length > 0) {
+        console.log("Sample raw team roster entry from ESPN:", JSON.stringify(teams[0].roster[0], null, 2));
       }
 
       // Process roster data for each team
