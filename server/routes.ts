@@ -38,30 +38,33 @@ function processRoster(roster: any[]): any[] {
   }
 
   return roster.map((entry: any) => {
-    // ESPN API has nested structure - need to dig deep
+    // ESPN API has different structures for different endpoints
     let player: any = null;
-    let playerSlot = entry;
-
-    // Try different paths to find player data
-    if (entry.playerPoolEntry?.player) {
-      player = entry.playerPoolEntry.player;
-    } else if (entry.player) {
-      player = entry.player;
-    } else if (entry.entry?.playerPoolEntry?.player) {
-      player = entry.entry.playerPoolEntry.player;
-    }
-
-    // If still no player, check if entry itself has player properties
-    if (!player && entry.fullName) {
+    let lineupSlotId = 20; // Default to bench
+    
+    // Check if this is from the teams endpoint (has direct player properties)
+    if (entry.fullName || entry.firstName || entry.lastName) {
       player = entry;
+      // For teams endpoint, rosteredPosition tells us the lineup slot
+      if (entry.rosteredPosition) {
+        // Map rosteredPosition string to slot ID
+        const posMap: Record<string, number> = {
+          'QB': 0, 'RB': 2, 'WR': 4, 'TE': 6, 'FLEX': 23, 'D/ST': 16, 'K': 17,
+          'Bench': 20, 'BE': 20, 'IR': 21
+        };
+        lineupSlotId = posMap[entry.rosteredPosition] ?? 20;
+      }
+    } 
+    // Check for matchup endpoint structure (nested in playerPoolEntry)
+    else if (entry.playerPoolEntry?.player) {
+      player = entry.playerPoolEntry.player;
+      lineupSlotId = entry.lineupSlotId ?? 20;
+    } 
+    // Other possible structures
+    else if (entry.player) {
+      player = entry.player;
+      lineupSlotId = entry.lineupSlotId ?? entry.slot ?? 20;
     }
-
-    // Extract lineup slot ID from various locations
-    const lineupSlotId = entry.lineupSlotId ?? 
-                         entry.slot ?? 
-                         entry.lineupSlot ?? 
-                         entry.slotCategoryId ?? 
-                         20; // Default to bench
 
     // Get NFL team and opponent info
     const nflTeamId = player?.proTeamId ?? player?.proTeam ?? null;
@@ -69,48 +72,65 @@ function processRoster(roster: any[]): any[] {
 
     // Determine player name with extensive fallbacks
     let playerName = 'Empty Slot';
-
     if (player) {
-      // Try fullName first
       if (player.fullName) {
         playerName = player.fullName;
-      }
-      // Try firstName + lastName
-      else if (player.firstName && player.lastName) {
+      } else if (player.firstName && player.lastName) {
         playerName = `${player.firstName} ${player.lastName}`;
-      }
-      // For defense/special teams (position 16 or proTeamId without a name)
-      else if (lineupSlotId === 16 && nflTeamId && NFL_TEAM_NAMES[nflTeamId]) {
+      } else if (lineupSlotId === 16 && nflTeamId && NFL_TEAM_NAMES[nflTeamId]) {
         playerName = `${NFL_TEAM_NAMES[nflTeamId]} D/ST`;
-      }
-      // Try just lastName
-      else if (player.lastName) {
+      } else if (player.lastName) {
         playerName = player.lastName;
-      }
-      // If we have a proTeam but no name, might be D/ST
-      else if (nflTeamId && NFL_TEAM_NAMES[nflTeamId]) {
+      } else if (nflTeamId && NFL_TEAM_NAMES[nflTeamId]) {
         playerName = `${NFL_TEAM_NAMES[nflTeamId]} D/ST`;
       }
     }
 
-    // Get position label
-    let position = LINEUP_SLOT_LABELS[lineupSlotId] || 'SLOT';
-
-    // Also try to get the actual player position if available
-    if (player?.defaultPositionId && LINEUP_SLOT_LABELS[player.defaultPositionId]) {
-      position = LINEUP_SLOT_LABELS[player.defaultPositionId];
-    } else if (player?.eligibleSlots && player.eligibleSlots.length > 0) {
-      const firstEligible = player.eligibleSlots[0];
-      if (LINEUP_SLOT_LABELS[firstEligible]) {
-        position = LINEUP_SLOT_LABELS[firstEligible];
+    // Get the actual player position (their real position, not lineup slot)
+    let actualPosition = 'N/A';
+    
+    // Try defaultPosition first (like "RB/WR" for flex-eligible players)
+    if (player?.defaultPosition) {
+      // Parse positions like "RB/WR" to get primary position
+      const positions = player.defaultPosition.split('/');
+      // Use the first position that's a standard position
+      for (const pos of positions) {
+        if (['QB', 'RB', 'WR', 'TE', 'K'].includes(pos)) {
+          actualPosition = pos;
+          break;
+        }
       }
+      // If still N/A and position includes D/ST
+      if (actualPosition === 'N/A' && player.defaultPosition.includes('D/ST')) {
+        actualPosition = 'D/ST';
+      }
+    }
+    
+    // Fallback: check eligiblePositions array
+    if (actualPosition === 'N/A' && player?.eligiblePositions && Array.isArray(player.eligiblePositions)) {
+      for (const pos of player.eligiblePositions) {
+        if (['QB', 'RB', 'WR', 'TE', 'K', 'D/ST', 'DEF'].includes(pos)) {
+          actualPosition = pos === 'DEF' ? 'D/ST' : pos;
+          break;
+        }
+      }
+    }
+    
+    // Last resort: infer from lineup slot if it's a specific position slot
+    if (actualPosition === 'N/A' && lineupSlotId < 20) {
+      if (lineupSlotId === 0) actualPosition = 'QB';
+      else if (lineupSlotId === 2) actualPosition = 'RB';
+      else if (lineupSlotId === 4) actualPosition = 'WR';
+      else if (lineupSlotId === 6) actualPosition = 'TE';
+      else if (lineupSlotId === 16) actualPosition = 'D/ST';
+      else if (lineupSlotId === 17) actualPosition = 'K';
     }
 
     // Extract points
     const totalPoints = entry.totalPoints ?? 
                        entry.points ?? 
                        entry.appliedStatTotal ?? 
-                       player?.points ?? 
+                       player?.totalPoints ?? 
                        0;
 
     const projectedPoints = entry.projectedPoints ?? 
@@ -118,22 +138,8 @@ function processRoster(roster: any[]): any[] {
                            player?.projectedPoints ?? 
                            0;
 
-    // Determine if this is a starter (lineup slot < 20 means active lineup)
-    const isStarter = lineupSlotId < 20;
-
-    // Get the actual player position (not lineup slot position)
-    let actualPosition = 'N/A';
-    if (player?.defaultPositionId && LINEUP_SLOT_LABELS[player.defaultPositionId]) {
-      actualPosition = LINEUP_SLOT_LABELS[player.defaultPositionId];
-    } else if (player?.defaultPosition) {
-      actualPosition = player.defaultPosition;
-    } else if (lineupSlotId === 16) {
-      actualPosition = 'D/ST';
-    } else if (lineupSlotId === 17) {
-      actualPosition = 'K';
-    } else if (LINEUP_SLOT_LABELS[lineupSlotId] && lineupSlotId < 20) {
-      actualPosition = LINEUP_SLOT_LABELS[lineupSlotId];
-    }
+    // Determine if this is a starter (lineup slot < 20 means active lineup, not bench/IR)
+    const isStarter = lineupSlotId < 20 && lineupSlotId !== 21;
 
     return {
       playerId: player?.id ?? null,
