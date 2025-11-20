@@ -1,4 +1,4 @@
-import { Home, User, TrendingUp } from "lucide-react";
+import { Home, Users, TrendingUp, User, Trophy } from "lucide-react";
 import { useLocation } from "wouter";
 
 export default function BottomNav() {
@@ -6,8 +6,10 @@ export default function BottomNav() {
 
   const navItems = [
     { icon: Home, label: "Home", path: "/", testId: "nav-home" },
-    { icon: User, label: "Profile", path: "/profile", testId: "nav-profile" },
     { icon: TrendingUp, label: "Rankings", path: "/rankings", testId: "nav-rankings" },
+    { icon: Trophy, label: "Team", path: "/team", testId: "nav-team" },
+    { icon: Users, label: "League", path: "/league", testId: "nav-league" },
+    { icon: User, label: "Account", path: "/account", testId: "nav-account" },
   ];
 
   return (
@@ -16,8 +18,7 @@ export default function BottomNav() {
         <nav className="flex items-center justify-around h-16">
           {navItems.map((item) => {
             const Icon = item.icon;
-            const isActive = location === item.path || 
-                           (item.path === "/" && location.startsWith("/league"));
+            const isActive = location === item.path;
             
             return (
               <button

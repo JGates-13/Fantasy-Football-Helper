@@ -7,10 +7,10 @@
 [x] 7. Add team selection dialog after connecting league
 [x] 8. Add "My Team" section at bottom of home page
 [x] 9. Fix player name/position display in matchups and rosters
-[ ] 10. Update bottom nav with 5 tabs: Home, Rankings, Team, League, Account
-[ ] 11. Create Team page with roster display and team selection
-[ ] 12. Implement Rankings page with Sleeper API integration
-[ ] 13. Create League page with standings
-[ ] 14. Create Account page with league management
-[ ] 15. Add trade suggestions to Team page
-[ ] 16. Add waiver wire suggestions to Team page
+[x] 10. Update bottom nav with 5 tabs: Home, Rankings, Team, League, Account
+[x] 11. Create Team page with roster display and team selection
+[x] 12. Implement Rankings page with Sleeper API integration
+[x] 13. Create League page with standings
+[x] 14. Create Account page with league management
+[x] 15. Add trade suggestions to Team page
+[x] 16. Add waiver wire suggestions to Team page

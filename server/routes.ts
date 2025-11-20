@@ -467,6 +467,146 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Rankings from Sleeper API
+  app.get('/api/rankings', async (req, res) => {
+    try {
+      const response = await fetch('https://api.sleeper.com/stats/nfl/2024?season_type=regular&position[]=QB&position[]=RB&position[]=WR&position[]=TE&position[]=K&position[]=DEF&order_by=pts_ppr');
+      if (!response.ok) {
+        throw new Error('Failed to fetch rankings from Sleeper');
+      }
+      
+      const allStats = await response.json();
+      
+      // Also fetch player info to get names
+      const playersResponse = await fetch('https://api.sleeper.app/v1/players/nfl');
+      if (!playersResponse.ok) {
+        throw new Error('Failed to fetch player data');
+      }
+      const players = await playersResponse.json();
+      
+      // Organize rankings by position
+      const rankings: any = {
+        QB: [],
+        RB: [],
+        WR: [],
+        TE: [],
+        K: [],
+        DEF: []
+      };
+      
+      // Process and rank players
+      allStats.forEach((stat: any, index: number) => {
+        const player = players[stat.player_id];
+        if (player && stat.stats?.pts_ppr) {
+          const position = stat.position || player.position;
+          if (rankings[position]) {
+            rankings[position].push({
+              playerId: stat.player_id,
+              name: `${player.first_name || ''} ${player.last_name || ''}`.trim() || player.full_name || 'Unknown',
+              position: position,
+              team: player.team || 'FA',
+              rank: rankings[position].length + 1,
+              points: stat.stats.pts_ppr || 0
+            });
+          }
+        }
+      });
+      
+      // Sort each position by points and limit to top 50
+      Object.keys(rankings).forEach(pos => {
+        rankings[pos] = rankings[pos]
+          .sort((a: any, b: any) => b.points - a.points)
+          .slice(0, 50)
+          .map((p: any, idx: number) => ({ ...p, rank: idx + 1 }));
+      });
+      
+      res.json(rankings);
+    } catch (error) {
+      console.error("Error fetching rankings:", error);
+      res.status(500).json({ message: "Failed to fetch rankings" });
+    }
+  });
+
+  // Waiver wire trending adds from Sleeper API
+  app.get('/api/waiver-wire', async (req, res) => {
+    try {
+      const response = await fetch('https://api.sleeper.app/v1/players/nfl/trending/add?lookback_hours=24&limit=25');
+      if (!response.ok) {
+        throw new Error('Failed to fetch trending players');
+      }
+      
+      const trending = await response.json();
+      
+      // Fetch player info
+      const playersResponse = await fetch('https://api.sleeper.app/v1/players/nfl');
+      if (!playersResponse.ok) {
+        throw new Error('Failed to fetch player data');
+      }
+      const players = await playersResponse.json();
+      
+      // Map player IDs to names
+      const trendingPlayers = trending.map((t: any) => {
+        const player = players[t.player_id];
+        return {
+          playerId: t.player_id,
+          name: player ? `${player.first_name || ''} ${player.last_name || ''}`.trim() || player.full_name : 'Unknown',
+          position: player?.position || 'N/A',
+          team: player?.team || 'FA',
+          adds: t.count
+        };
+      });
+      
+      res.json(trendingPlayers);
+    } catch (error) {
+      console.error("Error fetching waiver wire:", error);
+      res.status(500).json({ message: "Failed to fetch waiver wire suggestions" });
+    }
+  });
+
+  // Trade suggestions (basic implementation)
+  app.get('/api/trade-suggestions/:id', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user as User;
+      const { id } = req.params;
+      
+      // Verify the league belongs to the user
+      const league = await storage.getLeagueById(id);
+      if (!league) {
+        return res.status(404).json({ message: "League not found" });
+      }
+      if (league.userId !== user.id) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+      
+      // For now, return empty array - can be enhanced with more sophisticated logic
+      // In a real implementation, this would analyze rosters and suggest trades
+      res.json([]);
+    } catch (error) {
+      console.error("Error fetching trade suggestions:", error);
+      res.status(500).json({ message: "Failed to fetch trade suggestions" });
+    }
+  });
+
+  // Delete account
+  app.delete('/api/account', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user as User;
+      await storage.deleteUser(user.id);
+      
+      // Destroy session
+      req.session.destroy((err) => {
+        if (err) {
+          console.error("Error destroying session:", err);
+        }
+      });
+      
+      res.json({ message: "Account deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting account:", error);
+      res.status(500).json({ message: "Failed to delete account" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

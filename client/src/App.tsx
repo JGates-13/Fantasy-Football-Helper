@@ -12,6 +12,9 @@ import Home from "@/pages/home";
 import Profile from "@/pages/profile";
 import Rankings from "@/pages/rankings";
 import LeagueView from "@/pages/league-view";
+import Team from "@/pages/team";
+import League from "@/pages/league";
+import Account from "@/pages/account";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -36,6 +39,9 @@ function Router() {
         <Route path="/login" component={Login} />
         <Route path="/signup" component={Signup} />
         <Route path="/league/:id" component={LeagueView} />
+        <Route path="/team" component={Team} />
+        <Route path="/league" component={League} />
+        <Route path="/account" component={Account} />
         <Route path="/profile" component={Profile} />
         <Route path="/rankings" component={Rankings} />
         {!isAuthenticated ? (
