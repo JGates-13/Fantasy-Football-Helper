@@ -9,6 +9,39 @@ import type { User } from "@shared/schema";
 const require = createRequire(import.meta.url);
 const { Client } = require("espn-fantasy-football-api/node");
 
+// Lineup slot mapping for ESPN Fantasy Football
+const LINEUP_SLOT_LABELS: Record<number, string> = {
+  0: 'QB',
+  2: 'RB',
+  4: 'WR',
+  6: 'TE',
+  16: 'D/ST',
+  17: 'K',
+  20: 'BE',  // Bench
+  21: 'IR',  // Injured Reserve
+  23: 'FLEX',
+};
+
+// Helper function to process roster data
+function processRoster(roster: any[]): any[] {
+  return roster.map((playerSlot: any) => ({
+    playerName: playerSlot.player?.fullName || 'Unknown Player',
+    position: LINEUP_SLOT_LABELS[playerSlot.lineupSlotId] || playerSlot.position || 'UNKNOWN',
+    lineupSlotId: playerSlot.lineupSlotId,
+    isStarter: playerSlot.lineupSlotId !== 20 && playerSlot.lineupSlotId !== 21, // Not bench or IR
+    totalPoints: playerSlot.totalPoints || 0,
+    projectedPoints: playerSlot.projectedPoints || 0,
+    nflTeam: playerSlot.player?.proTeam || '',
+    playerId: playerSlot.player?.playerId || null,
+  })).sort((a, b) => {
+    // Sort starters first, then by lineup slot ID
+    if (a.isStarter !== b.isStarter) {
+      return a.isStarter ? -1 : 1;
+    }
+    return a.lineupSlotId - b.lineupSlotId;
+  });
+}
+
 export async function registerRoutes(app: Express): Promise<Server> {
   // Auth middleware
   await setupAuth(app);
@@ -188,7 +221,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(500).json({ message: "Failed to fetch matchups from ESPN" });
       }
 
-      res.json({ week: currentWeek, matchups: boxscores });
+      // Enhance boxscores with processed player roster data
+      const enhancedMatchups = boxscores.map((boxscore: any) => ({
+        ...boxscore,
+        homeRoster: processRoster(boxscore.homeRoster || []),
+        awayRoster: processRoster(boxscore.awayRoster || []),
+      }));
+
+      res.json({ week: currentWeek, matchups: enhancedMatchups });
     } catch (error) {
       console.error("Error fetching matchups:", error);
       res.status(500).json({ message: "Failed to fetch matchups" });
