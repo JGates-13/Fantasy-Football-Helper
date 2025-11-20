@@ -467,10 +467,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Rankings from Sleeper API
+  // Rankings from Sleeper API with current season year
   app.get('/api/rankings', async (req, res) => {
     try {
-      const response = await fetch('https://api.sleeper.com/stats/nfl/2024?season_type=regular&position[]=QB&position[]=RB&position[]=WR&position[]=TE&position[]=K&position[]=DEF&order_by=pts_ppr');
+      // Get current season year dynamically
+      const now = new Date();
+      const currentSeasonYear = now.getMonth() >= 8 ? now.getFullYear() : now.getFullYear() - 1;
+      
+      const response = await fetch(`https://api.sleeper.com/stats/nfl/${currentSeasonYear}?season_type=regular&position[]=QB&position[]=RB&position[]=WR&position[]=TE&position[]=K&position[]=DEF&order_by=pts_ppr`);
       if (!response.ok) {
         throw new Error('Failed to fetch rankings from Sleeper');
       }
@@ -494,6 +498,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         DEF: []
       };
       
+      // Get current week to calculate per-game averages
+      const currentWeek = getCurrentNFLWeek();
+      
       // Process and rank players
       allStats.forEach((stat: any, index: number) => {
         const player = players[stat.player_id];
@@ -506,7 +513,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
               position: position,
               team: player.team || 'FA',
               rank: rankings[position].length + 1,
-              points: stat.stats.pts_ppr || 0
+              points: stat.stats.pts_ppr || 0,
+              weeklyAvg: currentWeek > 0 ? (stat.stats.pts_ppr / currentWeek).toFixed(1) : '0.0'
             });
           }
         }
@@ -557,7 +565,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const players = await playersResponse.json();
       
       // Fetch current season stats for ranking
-      const statsResponse = await fetch('https://api.sleeper.com/stats/nfl/2024?season_type=regular&position[]=QB&position[]=RB&position[]=WR&position[]=TE&position[]=K&position[]=DEF&order_by=pts_ppr');
+      const now = new Date();
+      const currentSeasonYear = now.getMonth() >= 8 ? now.getFullYear() : now.getFullYear() - 1;
+      
+      const statsResponse = await fetch(`https://api.sleeper.com/stats/nfl/${currentSeasonYear}?season_type=regular&position[]=QB&position[]=RB&position[]=WR&position[]=TE&position[]=K&position[]=DEF&order_by=pts_ppr`);
       if (!statsResponse.ok) {
         throw new Error('Failed to fetch player stats');
       }
@@ -723,7 +734,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Fetch current season stats for player valuations
-      const statsResponse = await fetch('https://api.sleeper.com/stats/nfl/2024?season_type=regular&position[]=QB&position[]=RB&position[]=WR&position[]=TE&position[]=K&position[]=DEF&order_by=pts_ppr');
+      const now = new Date();
+      const currentSeasonYear = now.getMonth() >= 8 ? now.getFullYear() : now.getFullYear() - 1;
+      
+      const statsResponse = await fetch(`https://api.sleeper.com/stats/nfl/${currentSeasonYear}?season_type=regular&position[]=QB&position[]=RB&position[]=WR&position[]=TE&position[]=K&position[]=DEF&order_by=pts_ppr`);
       if (!statsResponse.ok) {
         throw new Error('Failed to fetch player stats');
       }
@@ -953,30 +967,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
   return httpServer;
 }
 
-// Helper function to get current NFL week (accurate for 2024 season)
+// Helper function to get current NFL week (dynamically calculates for any season)
 function getCurrentNFLWeek(): number {
   const now = new Date();
+  const currentYear = now.getFullYear();
   
-  // 2024 NFL Regular Season schedule (week start dates)
+  // NFL season typically starts first Thursday after Labor Day (first Monday in September)
+  // For simplicity, we'll use early September as the season start
+  const seasonStartYear = now.getMonth() >= 8 ? currentYear : currentYear - 1; // September or later = current year, else previous year
+  
+  // Week start dates for current season (adjust year dynamically)
   const weekStarts = [
-    new Date('2024-09-05'), // Week 1
-    new Date('2024-09-09'), // Week 2
-    new Date('2024-09-16'), // Week 3
-    new Date('2024-09-23'), // Week 4
-    new Date('2024-09-30'), // Week 5
-    new Date('2024-10-07'), // Week 6
-    new Date('2024-10-14'), // Week 7
-    new Date('2024-10-21'), // Week 8
-    new Date('2024-10-28'), // Week 9
-    new Date('2024-11-04'), // Week 10
-    new Date('2024-11-11'), // Week 11
-    new Date('2024-11-18'), // Week 12
-    new Date('2024-11-25'), // Week 13
-    new Date('2024-12-02'), // Week 14
-    new Date('2024-12-09'), // Week 15
-    new Date('2024-12-16'), // Week 16
-    new Date('2024-12-23'), // Week 17
-    new Date('2024-12-30'), // Week 18
+    new Date(`${seasonStartYear}-09-05`), // Week 1 (approximate)
+    new Date(`${seasonStartYear}-09-09`), // Week 2
+    new Date(`${seasonStartYear}-09-16`), // Week 3
+    new Date(`${seasonStartYear}-09-23`), // Week 4
+    new Date(`${seasonStartYear}-09-30`), // Week 5
+    new Date(`${seasonStartYear}-10-07`), // Week 6
+    new Date(`${seasonStartYear}-10-14`), // Week 7
+    new Date(`${seasonStartYear}-10-21`), // Week 8
+    new Date(`${seasonStartYear}-10-28`), // Week 9
+    new Date(`${seasonStartYear}-11-04`), // Week 10
+    new Date(`${seasonStartYear}-11-11`), // Week 11
+    new Date(`${seasonStartYear}-11-18`), // Week 12
+    new Date(`${seasonStartYear}-11-25`), // Week 13
+    new Date(`${seasonStartYear}-12-02`), // Week 14
+    new Date(`${seasonStartYear}-12-09`), // Week 15
+    new Date(`${seasonStartYear}-12-16`), // Week 16
+    new Date(`${seasonStartYear}-12-23`), // Week 17
+    new Date(`${seasonStartYear}-12-30`), // Week 18
   ];
   
   // Find the current week
@@ -986,6 +1005,6 @@ function getCurrentNFLWeek(): number {
     }
   }
   
-  // Before season starts
+  // Before season starts or after season ends
   return 1;
 }
