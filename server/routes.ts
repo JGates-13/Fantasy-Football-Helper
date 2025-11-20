@@ -4,6 +4,7 @@ import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./auth";
 import { createRequire } from "module";
 import type { User } from "@shared/schema";
+import { z } from "zod";
 
 // ESPN API doesn't support ES modules, use createRequire
 const require = createRequire(import.meta.url);
@@ -37,9 +38,31 @@ function processRoster(roster: any[]): any[] {
     const nflTeamId = player.proTeamId || player.proTeam;
     const opponentTeamId = player.opponentProTeamId;
     
+    // Determine player name with multiple fallbacks
+    let playerName = player.fullName;
+    if (!playerName && player.firstName && player.lastName) {
+      playerName = `${player.firstName} ${player.lastName}`;
+    }
+    if (!playerName && nflTeamId && NFL_TEAM_NAMES[nflTeamId]) {
+      // For defenses/special teams, use team abbreviation with D/ST
+      playerName = `${NFL_TEAM_NAMES[nflTeamId]} D/ST`;
+    }
+    // Fallback for players without proTeamId (free agents, etc.)
+    if (!playerName && playerSlot.playerPoolEntry?.player) {
+      const poolPlayer = playerSlot.playerPoolEntry.player;
+      playerName = poolPlayer.fullName || 
+        (poolPlayer.firstName && poolPlayer.lastName ? `${poolPlayer.firstName} ${poolPlayer.lastName}` : null);
+    }
+    if (!playerName && player.lastName) {
+      // Last resort: use just last name if available
+      playerName = player.lastName;
+    }
+    if (!playerName) {
+      playerName = 'Empty Slot';
+    }
+    
     return {
-      playerName: player.fullName || 
-        (player.firstName && player.lastName ? `${player.firstName} ${player.lastName}` : 'Unknown Player'),
+      playerName,
       position: LINEUP_SLOT_LABELS[playerSlot.lineupSlotId] || player.defaultPositionId || 'UNKNOWN',
       lineupSlotId: playerSlot.lineupSlotId,
       isStarter: playerSlot.lineupSlotId !== 20 && playerSlot.lineupSlotId !== 21,
@@ -200,11 +223,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const user = req.user as User;
       const userId = user.id;
       const { id } = req.params;
-      const { teamId } = req.body;
 
-      if (!teamId) {
-        return res.status(400).json({ message: "Team ID is required" });
+      // Validate request body with Zod
+      const setTeamSchema = z.object({
+        teamId: z.number().int().positive(),
+      });
+
+      const validation = setTeamSchema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({ 
+          message: "Valid team ID is required",
+          errors: validation.error.errors 
+        });
       }
+
+      const { teamId } = validation.data;
 
       // Verify the league belongs to the user
       const league = await storage.getLeagueById(id);
@@ -215,7 +248,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ message: "Forbidden" });
       }
 
-      await storage.updateUserTeam(userId, id, parseInt(teamId));
+      // Validate that the team exists in the league by fetching from ESPN
+      const espnClient = new Client({ leagueId: parseInt(league.leagueId) });
+      let teams;
+      try {
+        let timeoutId: NodeJS.Timeout;
+        const timeoutPromise = new Promise((_, reject) => {
+          timeoutId = setTimeout(() => reject(new Error('ESPN API request timed out')), 10000);
+        });
+
+        try {
+          teams = await Promise.race([
+            espnClient.getTeamsAtWeek({
+              seasonId: league.seasonId,
+              scoringPeriodId: getCurrentNFLWeek(),
+            }),
+            timeoutPromise
+          ]);
+        } finally {
+          clearTimeout(timeoutId!);
+        }
+      } catch (espnError: any) {
+        console.error("ESPN API error validating team:", espnError);
+        return res.status(500).json({ message: "Failed to validate team with ESPN" });
+      }
+
+      // Check if the team exists in the league
+      const teamExists = teams.some((team: any) => team.id === teamId);
+      if (!teamExists) {
+        return res.status(400).json({ message: "Team does not exist in this league" });
+      }
+
+      await storage.updateUserTeam(userId, id, teamId);
       res.json({ message: "Team selected successfully" });
     } catch (error) {
       console.error("Error setting user team:", error);

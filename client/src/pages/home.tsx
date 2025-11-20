@@ -42,12 +42,13 @@ export default function Home() {
     enabled: !!user,
   });
 
-  const { data: teamsData, isLoading: teamsLoading } = useQuery<{
+  const { data: teamsData, isLoading: teamsLoading, error: teamsError } = useQuery<{
     teams: any[];
     week: number;
   }>({
     queryKey: ["/api/leagues", teamSelectionDialog.leagueDbId, "teams"],
     enabled: teamSelectionDialog.open && !!teamSelectionDialog.leagueDbId,
+    retry: 2,
   });
 
   // Handle auth errors in leagues query
@@ -65,7 +66,7 @@ export default function Home() {
   const connectLeagueMutation = useMutation<EspnLeague, Error, { leagueId: string; seasonId: string }>({
     mutationFn: async (data: { leagueId: string; seasonId: string }) => {
       const response = await apiRequest("POST", "/api/leagues/connect", data);
-      return response as EspnLeague;
+      return response as unknown as EspnLeague;
     },
     onSuccess: (newLeague) => {
       queryClient.invalidateQueries({ queryKey: ["/api/leagues"] });
@@ -459,6 +460,10 @@ export default function Home() {
       <Dialog open={teamSelectionDialog.open} onOpenChange={(open) => {
         if (!open) {
           setTeamSelectionDialog({ open: false, leagueDbId: "", leagueEspnId: "", seasonId: 0 });
+          // Reset query state when dialog closes
+          queryClient.removeQueries({ 
+            queryKey: ["/api/leagues", teamSelectionDialog.leagueDbId, "teams"] 
+          });
         }
       }}>
         <DialogContent className="max-w-md">
@@ -475,27 +480,54 @@ export default function Home() {
                   <Skeleton key={i} className="h-16 w-full" />
                 ))}
               </div>
-            ) : teamsData?.teams && teamsData.teams.length > 0 ? (
-              teamsData.teams.map((team: any) => (
+            ) : teamsError ? (
+              <div className="text-center py-8">
+                <p className="text-sm text-destructive mb-2">Failed to load teams</p>
+                <p className="text-xs text-muted-foreground mb-4">
+                  {(teamsError as Error).message || 'Please try again later'}
+                </p>
                 <Button
-                  key={team.id}
                   variant="outline"
-                  className="w-full justify-start text-left h-auto p-3"
-                  onClick={() => setTeamMutation.mutate({ 
-                    leagueDbId: teamSelectionDialog.leagueDbId, 
-                    teamId: team.id 
-                  })}
-                  disabled={setTeamMutation.isPending}
-                  data-testid={`button-team-${team.id}`}
+                  size="sm"
+                  onClick={() => {
+                    queryClient.invalidateQueries({ 
+                      queryKey: ["/api/leagues", teamSelectionDialog.leagueDbId, "teams"] 
+                    });
+                  }}
                 >
-                  <div className="flex flex-col gap-1">
-                    <span className="font-semibold">{team.name || `Team ${team.id}`}</span>
-                    <span className="text-xs text-muted-foreground">
-                      Owner: {team.owners?.[0]?.firstName || team.owners?.[0]?.displayName || 'Unknown'}
-                    </span>
-                  </div>
+                  Retry
                 </Button>
-              ))
+              </div>
+            ) : teamsData?.teams && teamsData.teams.length > 0 ? (
+              <>
+                {setTeamMutation.isError && (
+                  <div className="bg-destructive/10 border border-destructive/20 rounded-md p-3 mb-2">
+                    <p className="text-sm text-destructive">
+                      {(setTeamMutation.error as Error)?.message || 'Failed to save team selection'}
+                    </p>
+                  </div>
+                )}
+                {teamsData.teams.map((team: any) => (
+                  <Button
+                    key={team.id}
+                    variant="outline"
+                    className="w-full justify-start text-left h-auto p-3"
+                    onClick={() => setTeamMutation.mutate({ 
+                      leagueDbId: teamSelectionDialog.leagueDbId, 
+                      teamId: team.id 
+                    })}
+                    disabled={setTeamMutation.isPending}
+                    data-testid={`button-team-${team.id}`}
+                  >
+                    <div className="flex flex-col gap-1">
+                      <span className="font-semibold">{team.name || `Team ${team.id}`}</span>
+                      <span className="text-xs text-muted-foreground">
+                        Owner: {team.owners?.[0]?.firstName || team.owners?.[0]?.displayName || 'Unknown'}
+                      </span>
+                    </div>
+                  </Button>
+                ))}
+              </>
             ) : (
               <p className="text-sm text-muted-foreground text-center py-4">
                 No teams available
