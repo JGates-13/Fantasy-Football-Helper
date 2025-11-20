@@ -121,19 +121,31 @@ function processRoster(roster: any[]): any[] {
     // Determine if this is a starter (lineup slot < 20 means active lineup)
     const isStarter = lineupSlotId < 20;
 
+    // Get the actual player position (not lineup slot position)
+    let actualPosition = 'N/A';
+    if (player?.defaultPositionId && LINEUP_SLOT_LABELS[player.defaultPositionId]) {
+      actualPosition = LINEUP_SLOT_LABELS[player.defaultPositionId];
+    } else if (player?.defaultPosition) {
+      actualPosition = player.defaultPosition;
+    } else if (lineupSlotId === 16) {
+      actualPosition = 'D/ST';
+    } else if (lineupSlotId === 17) {
+      actualPosition = 'K';
+    } else if (LINEUP_SLOT_LABELS[lineupSlotId] && lineupSlotId < 20) {
+      actualPosition = LINEUP_SLOT_LABELS[lineupSlotId];
+    }
+
     return {
       playerId: player?.id ?? null,
       playerName,
-      position: LINEUP_SLOT_LABELS[lineupSlotId] || player?.defaultPosition || 'N/A',
+      position: actualPosition,
       lineupSlotId,
       isStarter,
       nflTeam: nflTeamId ? NFL_TEAM_NAMES[nflTeamId] || 'FA' : 'FA',
       opponent: opponentTeamId ? NFL_TEAM_NAMES[opponentTeamId] : null,
       totalPoints: parseFloat(totalPoints) || 0,
       projectedPoints: parseFloat(projectedPoints) || 0,
-      playerPosition: player?.defaultPositionId && LINEUP_SLOT_LABELS[player.defaultPositionId] 
-        ? LINEUP_SLOT_LABELS[player.defaultPositionId] 
-        : null,
+      slotCategoryId: lineupSlotId,
     };
   }).sort((a, b) => {
     // Sort starters first, then by lineup slot ID

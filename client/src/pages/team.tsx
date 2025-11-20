@@ -154,9 +154,9 @@ export default function Team() {
   const opponentId = isHomeTeam ? myMatchup?.awayTeamId : myMatchup?.homeTeamId;
   const opponentTeam = teamsData?.teams?.find(t => t.id === opponentId);
 
-  // Separate starters and bench
-  const starters = myTeam?.roster?.filter((p: any) => p.lineupSlotId < 20) || [];
-  const bench = myTeam?.roster?.filter((p: any) => p.lineupSlotId >= 20) || [];
+  // Separate starters and bench using isStarter flag
+  const starters = myTeam?.roster?.filter((p: any) => p.isStarter === true) || [];
+  const bench = myTeam?.roster?.filter((p: any) => p.isStarter === false) || [];
 
   return (
     <>
@@ -199,32 +199,30 @@ export default function Team() {
                     starters.map((player: any, index: number) => (
                       <div
                         key={index}
-                        className="flex items-center justify-between p-4 rounded-md border bg-card hover-elevate"
+                        className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 sm:p-4 rounded-md border bg-card hover-elevate gap-3"
                         data-testid={`player-starter-${index}`}
                       >
-                        <div className="flex items-center gap-4 flex-1 min-w-0">
-                          <Badge variant="default" className="w-14 text-center shrink-0">
+                        <div className="flex items-center gap-3 sm:gap-4 flex-1 min-w-0">
+                          <Badge variant="default" className="w-12 sm:w-14 text-center shrink-0 text-xs">
                             {player.position}
                           </Badge>
                           <div className="min-w-0 flex-1">
-                            <p className="font-semibold text-foreground truncate">{player.playerName}</p>
-                            <p className="text-sm text-muted-foreground">
+                            <p className="font-semibold text-sm sm:text-base text-foreground truncate">{player.playerName}</p>
+                            <p className="text-xs sm:text-sm text-muted-foreground">
                               {player.nflTeam} {player.opponent && `vs ${player.opponent}`}
                             </p>
                           </div>
                         </div>
-                        <div className="text-right shrink-0 ml-2">
-                          <div className="flex flex-col items-end gap-1">
-                            <div>
-                              <p className="text-lg font-bold text-primary">{player.totalPoints?.toFixed(1) || '0.0'}</p>
-                              <p className="text-xs text-muted-foreground">actual</p>
-                            </div>
-                            <div className="border-t pt-1">
-                              <p className="text-sm font-semibold text-blue-600 dark:text-blue-400">
-                                {player.projectedPoints?.toFixed(1) || '0.0'}
-                              </p>
-                              <p className="text-xs text-muted-foreground">projected</p>
-                            </div>
+                        <div className="flex items-center justify-between sm:flex-col sm:items-end shrink-0 gap-4 sm:gap-1 pl-12 sm:pl-0">
+                          <div className="text-center sm:text-right">
+                            <p className="text-base sm:text-lg font-bold text-primary">{player.totalPoints?.toFixed(1) || '0.0'}</p>
+                            <p className="text-[10px] sm:text-xs text-muted-foreground">actual</p>
+                          </div>
+                          <div className="text-center sm:text-right sm:border-t sm:pt-1">
+                            <p className="text-sm font-semibold text-blue-600 dark:text-blue-400">
+                              {player.projectedPoints?.toFixed(1) || '0.0'}
+                            </p>
+                            <p className="text-[10px] sm:text-xs text-muted-foreground">projected</p>
                           </div>
                         </div>
                       </div>
@@ -257,22 +255,22 @@ export default function Team() {
                     bench.map((player: any, index: number) => (
                       <div
                         key={index}
-                        className="flex items-center justify-between p-3 rounded-md bg-muted/40"
+                        className="flex items-center justify-between p-2 sm:p-3 rounded-md bg-muted/40"
                         data-testid={`player-bench-${index}`}
                       >
-                        <div className="flex items-center gap-3 flex-1 min-w-0">
-                          <Badge variant="outline" className="w-14 text-center shrink-0">
+                        <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
+                          <Badge variant="outline" className="w-12 sm:w-14 text-center shrink-0 text-xs">
                             {player.position}
                           </Badge>
                           <div className="min-w-0 flex-1">
-                            <p className="font-medium text-foreground truncate">{player.playerName}</p>
-                            <p className="text-sm text-muted-foreground">
+                            <p className="font-medium text-sm sm:text-base text-foreground truncate">{player.playerName}</p>
+                            <p className="text-xs sm:text-sm text-muted-foreground">
                               {player.nflTeam} {player.opponent && `vs ${player.opponent}`}
                             </p>
                           </div>
                         </div>
                         <div className="text-right shrink-0">
-                          <p className="font-semibold text-muted-foreground">{player.totalPoints?.toFixed(1) || '0.0'} pts</p>
+                          <p className="font-semibold text-sm sm:text-base text-muted-foreground">{player.totalPoints?.toFixed(1) || '0.0'} pts</p>
                         </div>
                       </div>
                     ))
@@ -290,23 +288,23 @@ export default function Team() {
                 <>
                   <Card>
                     <CardHeader className="pb-3">
-                      <CardTitle className="flex items-center gap-2">
-                        <Trophy className="w-5 h-5" />
+                      <CardTitle className="flex items-center gap-2 text-lg sm:text-2xl">
+                        <Trophy className="w-4 h-4 sm:w-5 sm:h-5" />
                         Week {currentWeek} Matchup
                       </CardTitle>
-                      <CardDescription>
+                      <CardDescription className="text-xs sm:text-sm">
                         {myTeam?.wins || 0}-{myTeam?.losses || 0}-{myTeam?.ties || 0} overall record
                       </CardDescription>
                     </CardHeader>
-                    <CardContent>
-                      <div className="grid grid-cols-3 gap-6 items-center text-center mb-6">
-                        <div className="space-y-3">
-                          <p className="font-semibold text-foreground text-lg" data-testid="text-my-team">{myTeam?.name || 'My Team'}</p>
-                          <p className="text-4xl font-bold text-primary" data-testid="text-my-score">
+                    <CardContent className="px-2 sm:px-6">
+                      <div className="grid grid-cols-3 gap-2 sm:gap-6 items-center text-center mb-4 sm:mb-6">
+                        <div className="space-y-2 sm:space-y-3">
+                          <p className="font-semibold text-foreground text-xs sm:text-lg truncate" data-testid="text-my-team">{myTeam?.name || 'My Team'}</p>
+                          <p className="text-2xl sm:text-4xl font-bold text-primary" data-testid="text-my-score">
                             {isHomeTeam ? myMatchup.homeScore?.toFixed(1) : myMatchup.awayScore?.toFixed(1)}
                           </p>
-                          <p className="text-sm text-muted-foreground">Current Score</p>
-                          <p className="text-lg font-semibold text-blue-600 dark:text-blue-400">
+                          <p className="text-[10px] sm:text-sm text-muted-foreground">Current</p>
+                          <p className="text-sm sm:text-lg font-semibold text-blue-600 dark:text-blue-400">
                             {(() => {
                               const myRoster = isHomeTeam ? myMatchup.homeRoster : myMatchup.awayRoster;
                               const myProjected = myRoster?.filter((p: any) => p.isStarter)
@@ -314,10 +312,10 @@ export default function Team() {
                               return myProjected.toFixed(1);
                             })()}
                           </p>
-                          <p className="text-xs text-muted-foreground">Projected</p>
+                          <p className="text-[10px] sm:text-xs text-muted-foreground">Projected</p>
                         </div>
-                        <div className="space-y-2">
-                          <div className="text-2xl font-bold text-muted-foreground bg-muted/30 rounded-full w-16 h-16 flex items-center justify-center mx-auto">
+                        <div className="space-y-1 sm:space-y-2">
+                          <div className="text-lg sm:text-2xl font-bold text-muted-foreground bg-muted/30 rounded-full w-10 h-10 sm:w-16 sm:h-16 flex items-center justify-center mx-auto">
                             VS
                           </div>
                           {(() => {
@@ -331,22 +329,22 @@ export default function Team() {
                             const winProbability = totalProjected > 0 ? (myProjected / totalProjected * 100) : 50;
                             
                             return (
-                              <div className="mt-4">
-                                <div className="text-3xl font-bold text-primary">
+                              <div className="mt-2 sm:mt-4">
+                                <div className="text-xl sm:text-3xl font-bold text-primary">
                                   {winProbability.toFixed(0)}%
                                 </div>
-                                <p className="text-xs text-muted-foreground mt-1">Win Probability</p>
+                                <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">Win %</p>
                               </div>
                             );
                           })()}
                         </div>
-                        <div className="space-y-3">
-                          <p className="font-semibold text-foreground text-lg" data-testid="text-opponent">{opponentTeam?.name || 'Opponent'}</p>
-                          <p className="text-4xl font-bold text-muted-foreground" data-testid="text-opponent-score">
+                        <div className="space-y-2 sm:space-y-3">
+                          <p className="font-semibold text-foreground text-xs sm:text-lg truncate" data-testid="text-opponent">{opponentTeam?.name || 'Opponent'}</p>
+                          <p className="text-2xl sm:text-4xl font-bold text-muted-foreground" data-testid="text-opponent-score">
                             {isHomeTeam ? myMatchup.awayScore?.toFixed(1) : myMatchup.homeScore?.toFixed(1)}
                           </p>
-                          <p className="text-sm text-muted-foreground">Current Score</p>
-                          <p className="text-lg font-semibold text-blue-600 dark:text-blue-400">
+                          <p className="text-[10px] sm:text-sm text-muted-foreground">Current</p>
+                          <p className="text-sm sm:text-lg font-semibold text-blue-600 dark:text-blue-400">
                             {(() => {
                               const oppRoster = isHomeTeam ? myMatchup.awayRoster : myMatchup.homeRoster;
                               const oppProjected = oppRoster?.filter((p: any) => p.isStarter)
@@ -354,7 +352,7 @@ export default function Team() {
                               return oppProjected.toFixed(1);
                             })()}
                           </p>
-                          <p className="text-xs text-muted-foreground">Projected</p>
+                          <p className="text-[10px] sm:text-xs text-muted-foreground">Projected</p>
                         </div>
                       </div>
                       {myMatchup.homeScore !== undefined && myMatchup.awayScore !== undefined && (
@@ -382,47 +380,47 @@ export default function Team() {
 
                   <Card>
                     <CardHeader className="pb-3">
-                      <CardTitle className="text-lg">Starting Lineup Comparison</CardTitle>
+                      <CardTitle className="text-base sm:text-lg">Starting Lineup Comparison</CardTitle>
                     </CardHeader>
-                    <CardContent>
-                      <div className="grid md:grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <h3 className="font-semibold text-sm text-muted-foreground mb-3">Your Starters</h3>
+                    <CardContent className="px-2 sm:px-6">
+                      <div className="grid md:grid-cols-2 gap-3 sm:gap-4">
+                        <div className="space-y-1.5 sm:space-y-2">
+                          <h3 className="font-semibold text-xs sm:text-sm text-muted-foreground mb-2 sm:mb-3">Your Starters</h3>
                           {(() => {
                             const myRoster = isHomeTeam ? myMatchup.homeRoster : myMatchup.awayRoster;
                             return myRoster?.filter((p: any) => p.isStarter).map((player: any, idx: number) => (
-                              <div key={idx} className="flex items-center justify-between p-2 rounded-md bg-primary/10 border border-primary/20 text-sm">
-                                <div className="flex items-center gap-2 flex-1 min-w-0">
-                                  <Badge variant="default" className="text-xs shrink-0">{player.position}</Badge>
+                              <div key={idx} className="flex items-center justify-between p-1.5 sm:p-2 rounded-md bg-primary/10 border border-primary/20 text-xs sm:text-sm">
+                                <div className="flex items-center gap-1.5 sm:gap-2 flex-1 min-w-0">
+                                  <Badge variant="default" className="text-[10px] sm:text-xs shrink-0 px-1 sm:px-2">{player.position}</Badge>
                                   <div className="flex flex-col min-w-0">
-                                    <span className="font-medium truncate">{player.playerName}</span>
-                                    <span className="text-xs text-muted-foreground">{player.nflTeam}</span>
+                                    <span className="font-medium truncate text-xs sm:text-sm">{player.playerName}</span>
+                                    <span className="text-[10px] sm:text-xs text-muted-foreground">{player.nflTeam}</span>
                                   </div>
                                 </div>
-                                <div className="text-right shrink-0 ml-2">
-                                  <p className="font-bold text-primary">{player.totalPoints?.toFixed(1)}</p>
-                                  <p className="text-xs text-muted-foreground">({player.projectedPoints?.toFixed(1)})</p>
+                                <div className="text-right shrink-0 ml-1 sm:ml-2">
+                                  <p className="font-bold text-primary text-xs sm:text-sm">{player.totalPoints?.toFixed(1)}</p>
+                                  <p className="text-[10px] sm:text-xs text-muted-foreground">({player.projectedPoints?.toFixed(1)})</p>
                                 </div>
                               </div>
                             ));
                           })()}
                         </div>
-                        <div className="space-y-2">
-                          <h3 className="font-semibold text-sm text-muted-foreground mb-3">Opponent Starters</h3>
+                        <div className="space-y-1.5 sm:space-y-2">
+                          <h3 className="font-semibold text-xs sm:text-sm text-muted-foreground mb-2 sm:mb-3">Opponent Starters</h3>
                           {(() => {
                             const oppRoster = isHomeTeam ? myMatchup.awayRoster : myMatchup.homeRoster;
                             return oppRoster?.filter((p: any) => p.isStarter).map((player: any, idx: number) => (
-                              <div key={idx} className="flex items-center justify-between p-2 rounded-md bg-muted/50 border text-sm">
-                                <div className="flex items-center gap-2 flex-1 min-w-0">
-                                  <Badge variant="outline" className="text-xs shrink-0">{player.position}</Badge>
+                              <div key={idx} className="flex items-center justify-between p-1.5 sm:p-2 rounded-md bg-muted/50 border text-xs sm:text-sm">
+                                <div className="flex items-center gap-1.5 sm:gap-2 flex-1 min-w-0">
+                                  <Badge variant="outline" className="text-[10px] sm:text-xs shrink-0 px-1 sm:px-2">{player.position}</Badge>
                                   <div className="flex flex-col min-w-0">
-                                    <span className="font-medium truncate">{player.playerName}</span>
-                                    <span className="text-xs text-muted-foreground">{player.nflTeam}</span>
+                                    <span className="font-medium truncate text-xs sm:text-sm">{player.playerName}</span>
+                                    <span className="text-[10px] sm:text-xs text-muted-foreground">{player.nflTeam}</span>
                                   </div>
                                 </div>
-                                <div className="text-right shrink-0 ml-2">
-                                  <p className="font-bold">{player.totalPoints?.toFixed(1)}</p>
-                                  <p className="text-xs text-muted-foreground">({player.projectedPoints?.toFixed(1)})</p>
+                                <div className="text-right shrink-0 ml-1 sm:ml-2">
+                                  <p className="font-bold text-xs sm:text-sm">{player.totalPoints?.toFixed(1)}</p>
+                                  <p className="text-[10px] sm:text-xs text-muted-foreground">({player.projectedPoints?.toFixed(1)})</p>
                                 </div>
                               </div>
                             ));
