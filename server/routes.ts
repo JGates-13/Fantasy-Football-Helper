@@ -169,18 +169,17 @@ function processRoster(roster: any[]): any[] {
       return total;
     };
     
-    // Since player = entry for teams endpoint, we need to check entry.projectedPointBreakdown
-    // which is the same as player.projectedPointBreakdown
-    if (entry.projectedPointBreakdown) {
-      projectedPoints = sumBreakdown(entry.projectedPointBreakdown);
+    // For teams endpoint: entry IS the player object, breakdown is directly on it
+    // For matchup endpoint: player is in playerPoolEntry.player
+    let breakdown = entry.projectedPointBreakdown || 
+                   player?.projectedPointBreakdown || 
+                   entry.playerPoolEntry?.player?.projectedPointBreakdown;
+    
+    if (breakdown) {
+      projectedPoints = sumBreakdown(breakdown);
     }
     
-    // Fallback for matchup endpoint (playerPoolEntry structure)
-    if (projectedPoints === 0 && entry.playerPoolEntry?.player?.projectedPointBreakdown) {
-      projectedPoints = sumBreakdown(entry.playerPoolEntry.player.projectedPointBreakdown);
-    }
-    
-    // Last resort: direct projectedPoints field
+    // Fallback to direct projectedPoints field if breakdown doesn't exist or sum is 0
     if (projectedPoints === 0) {
       projectedPoints = entry.projectedPoints ?? 
                        player?.projectedPoints ??
