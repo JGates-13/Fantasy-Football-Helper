@@ -543,71 +543,125 @@ export default function Team() {
             <div className="space-y-4">
               <Card>
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Users className="w-5 h-5" />
-                    Trade Finder
-                  </CardTitle>
-                  <CardDescription>
-                    Smart trade suggestions based on roster analysis and position needs
-                  </CardDescription>
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div>
+                      <CardTitle className="flex items-center gap-2">
+                        <Users className="w-5 h-5" />
+                        Trade Finder
+                      </CardTitle>
+                      <CardDescription>
+                        AI-powered trade suggestions based on team analysis
+                      </CardDescription>
+                    </div>
+                    <Badge variant="outline" className="text-xs">
+                      Based on ESPN Projections
+                    </Badge>
+                  </div>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   {tradesLoading ? (
                     Array.from({ length: 3 }).map((_, i) => (
-                      <Skeleton key={i} className="h-32 w-full" />
+                      <Skeleton key={i} className="h-40 w-full" />
                     ))
                   ) : tradeSuggestions && tradeSuggestions.length > 0 ? (
                     tradeSuggestions.map((suggestion: any, index: number) => (
                       <div 
                         key={index} 
-                        className="p-4 rounded-md border bg-card hover-elevate"
+                        className="p-4 rounded-md border bg-card space-y-4"
                         data-testid={`trade-suggestion-${index}`}
                       >
-                        <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-                          <h4 className="font-semibold text-foreground">Trade with {suggestion.teamName}</h4>
-                          <Badge variant="outline">{suggestion.analysis.fairness} Fair</Badge>
+                        {/* Header */}
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <h4 className="font-semibold text-foreground">{suggestion.teamName}</h4>
+                              <Badge variant="outline" className="text-[10px]">
+                                {suggestion.teamRecord}
+                              </Badge>
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              {suggestion.analysis?.myWeakPosition} ⟷ {suggestion.analysis?.myStrongPosition} Position Swap
+                            </p>
+                          </div>
+                          <Badge 
+                            variant={suggestion.tradeQuality === 'Win-Win' ? 'default' : suggestion.tradeQuality === 'Favorable' ? 'secondary' : 'outline'} 
+                            className="text-xs shrink-0"
+                          >
+                            {suggestion.tradeQuality || 'Fair'}
+                          </Badge>
                         </div>
                         
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-3">
+                        {/* Trade Cards */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                           <div className="space-y-2">
-                            <p className="text-xs font-semibold text-muted-foreground uppercase">You Give</p>
-                            <div className="p-3 rounded-md bg-destructive/10 border border-destructive/20">
-                              <p className="font-medium text-foreground">{suggestion.myPlayer.name}</p>
-                              <div className="flex items-center justify-between mt-1">
-                                <span className="text-sm text-muted-foreground">
-                                  {suggestion.myPlayer.position} - {suggestion.myPlayer.team}
-                                </span>
-                                <span className="text-sm font-semibold text-foreground">
-                                  {suggestion.myPlayer.weeklyAvg} PPG
-                                </span>
+                            <p className="text-xs font-semibold text-muted-foreground uppercase">You Trade Away</p>
+                            <div className="p-3 rounded-md bg-destructive/10 border border-destructive/20 space-y-2">
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="flex-1 min-w-0">
+                                  <p className="font-semibold text-sm truncate">{suggestion.myPlayer.name}</p>
+                                  <p className="text-xs text-muted-foreground">
+                                    {suggestion.myPlayer.position} • {suggestion.myPlayer.team}
+                                  </p>
+                                </div>
+                                <Badge variant="outline" className="text-[10px] shrink-0">
+                                  {suggestion.myPlayer.position}
+                                </Badge>
+                              </div>
+                              <div className="flex items-center justify-between text-xs pt-2 border-t border-destructive/20">
+                                <div className="space-y-0.5">
+                                  <p className="text-muted-foreground">Season: {suggestion.myPlayer.seasonTotal} pts</p>
+                                  <p className="text-muted-foreground">Avg: {suggestion.myPlayer.weeklyAvg} PPG</p>
+                                </div>
+                                <div className="text-right">
+                                  <p className="font-semibold text-sm">{suggestion.myPlayer.projected}</p>
+                                  <p className="text-[10px] text-muted-foreground">Proj PPG</p>
+                                </div>
                               </div>
                             </div>
                           </div>
                           
                           <div className="space-y-2">
-                            <p className="text-xs font-semibold text-muted-foreground uppercase">You Get</p>
-                            <div className="p-3 rounded-md bg-primary/10 border border-primary/20">
-                              <p className="font-medium text-foreground">{suggestion.theirPlayer.name}</p>
-                              <div className="flex items-center justify-between mt-1">
-                                <span className="text-sm text-muted-foreground">
-                                  {suggestion.theirPlayer.position} - {suggestion.theirPlayer.team}
-                                </span>
-                                <span className="text-sm font-semibold text-primary">
-                                  {suggestion.theirPlayer.weeklyAvg} PPG
-                                </span>
+                            <p className="text-xs font-semibold text-muted-foreground uppercase">You Receive</p>
+                            <div className="p-3 rounded-md bg-primary/10 border border-primary/20 space-y-2">
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="flex-1 min-w-0">
+                                  <p className="font-semibold text-sm truncate">{suggestion.theirPlayer.name}</p>
+                                  <p className="text-xs text-muted-foreground">
+                                    {suggestion.theirPlayer.position} • {suggestion.theirPlayer.team}
+                                  </p>
+                                </div>
+                                <Badge variant="default" className="text-[10px] shrink-0">
+                                  {suggestion.theirPlayer.position}
+                                </Badge>
+                              </div>
+                              <div className="flex items-center justify-between text-xs pt-2 border-t border-primary/20">
+                                <div className="space-y-0.5">
+                                  <p className="text-muted-foreground">Season: {suggestion.theirPlayer.seasonTotal} pts</p>
+                                  <p className="text-muted-foreground">Avg: {suggestion.theirPlayer.weeklyAvg} PPG</p>
+                                </div>
+                                <div className="text-right">
+                                  <p className="font-semibold text-sm text-primary">{suggestion.theirPlayer.projected}</p>
+                                  <p className="text-[10px] text-muted-foreground">Proj PPG</p>
+                                </div>
                               </div>
                             </div>
                           </div>
                         </div>
                         
-                        <div className="space-y-2">
-                          <div className="flex items-center justify-between text-sm">
-                            <span className="text-muted-foreground">Your Impact:</span>
-                            <span className={`font-semibold ${parseFloat(suggestion.analysis.myImpact) > 0 ? 'text-green-600 dark:text-green-400' : 'text-destructive'}`}>
-                              {parseFloat(suggestion.analysis.myImpact) > 0 ? '+' : ''}{suggestion.analysis.myImpact} PPG
-                            </span>
+                        {/* Analysis */}
+                        <div className="pt-3 border-t space-y-2">
+                          <div className="flex items-center justify-between text-sm flex-wrap gap-2">
+                            <div>
+                              <span className="text-muted-foreground">Your Gain:</span>{' '}
+                              <span className={`font-semibold ${parseFloat(suggestion.analysis.myImprovement || suggestion.analysis.myImpact) > 0 ? 'text-green-600 dark:text-green-400' : 'text-destructive'}`}>
+                                {parseFloat(suggestion.analysis.myImprovement || suggestion.analysis.myImpact) > 0 ? '+' : ''}{suggestion.analysis.myImprovement || suggestion.analysis.myImpact} PPG
+                              </span>
+                            </div>
+                            <Badge variant="outline" className="text-[10px]">
+                              {suggestion.analysis.fairness} Fair
+                            </Badge>
                           </div>
-                          <p className="text-sm text-muted-foreground italic">
+                          <p className="text-xs text-muted-foreground leading-relaxed">
                             {suggestion.analysis.reasoning}
                           </p>
                         </div>

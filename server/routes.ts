@@ -739,7 +739,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Comprehensive trade finder with position analysis and impact assessment
+  // Comprehensive trade finder using ESPN projection data
   app.get('/api/trade-suggestions/:id', isAuthenticated, async (req, res) => {
     try {
       const user = req.user as User;
@@ -754,39 +754,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ message: "Forbidden" });
       }
 
-      // Fetch current season stats for player valuations
-      const now = new Date();
-      const currentSeasonYear = now.getMonth() >= 8 ? now.getFullYear() : now.getFullYear() - 1;
-
-      const statsResponse = await fetch(`https://api.sleeper.com/stats/nfl/${currentSeasonYear}?season_type=regular&position[]=QB&position[]=RB&position[]=WR&position[]=TE&position[]=K&position[]=DEF&order_by=pts_ppr`);
-      if (!statsResponse.ok) {
-        throw new Error('Failed to fetch player stats');
-      }
-      const allStats = await statsResponse.json();
-
-      // Fetch player data
-      const playersResponse = await fetch('https://api.sleeper.app/v1/players/nfl');
-      if (!playersResponse.ok) {
-        throw new Error('Failed to fetch player data');
-      }
-      const sleeperPlayers = await playersResponse.json();
-
-      // Create a map of player stats by Sleeper player ID
-      const statsMap = new Map();
-      allStats.forEach((stat: any) => {
-        if (stat.stats?.pts_ppr) {
-          const player = sleeperPlayers[stat.player_id];
-          if (player) {
-            statsMap.set(player.full_name?.toLowerCase(), {
-              points: stat.stats.pts_ppr,
-              weeklyAvg: stat.stats.pts_ppr / getCurrentNFLWeek(),
-              position: player.position
-            });
-          }
-        }
-      });
-
-      // Get all teams in the league
+      // Get all teams in the league with ESPN data
       const currentWeek = getCurrentNFLWeek();
       const espnClient = new Client({ leagueId: parseInt(league.leagueId) });
 
@@ -818,133 +786,177 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.json([]);
       }
 
-      // Process rosters with player valuations
+      // Process rosters using ESPN's actual and projected points
       const myRoster = processRoster(myTeam.roster || []).map((player: any) => {
-        const nameKey = player.playerName.toLowerCase();
-        const stats = statsMap.get(nameKey);
+        // Use projectedPoints for rest-of-season value, totalPoints for current performance
+        const projectedAvg = player.projectedPoints || 0;
+        const actualAvg = currentWeek > 0 ? (player.totalPoints || 0) / currentWeek : 0;
+        // Weight: 60% projected, 40% actual performance
+        const value = (projectedAvg * 0.6) + (actualAvg * 0.4);
+        
         return {
           ...player,
-          weeklyAvg: stats?.weeklyAvg || player.totalPoints / currentWeek || 0,
-          value: stats?.weeklyAvg || player.totalPoints / currentWeek || 0
+          weeklyAvg: actualAvg,
+          projectedAvg: projectedAvg,
+          value: value,
+          seasonTotal: player.totalPoints || 0
         };
       });
 
-      // Analyze my team's strengths and weaknesses
+      // Analyze my team's strengths and weaknesses by position
       const myPositionStrength: any = {};
-      const myStarters = myRoster.filter(p => p.isStarter);
+      const myAllPlayers = myRoster.filter(p => ['QB', 'RB', 'WR', 'TE'].includes(p.position));
+      
       ['QB', 'RB', 'WR', 'TE'].forEach(pos => {
-        const posPlayers = myStarters.filter(p => p.position === pos);
+        const posPlayers = myAllPlayers.filter(p => p.position === pos);
         if (posPlayers.length > 0) {
-          const avgValue = posPlayers.reduce((sum, p) => sum + p.value, 0) / posPlayers.length;
-          const totalValue = posPlayers.reduce((sum, p) => sum + p.value, 0);
+          const sortedPlayers = posPlayers.sort((a, b) => b.value - a.value);
+          const avgValue = sortedPlayers.reduce((sum, p) => sum + p.value, 0) / sortedPlayers.length;
+          const topValue = sortedPlayers[0]?.value || 0;
+          const depth = sortedPlayers.filter(p => p.value > 5).length;
+          
           myPositionStrength[pos] = {
             avgValue,
-            totalValue,
+            topValue,
+            depth,
             count: posPlayers.length,
-            players: posPlayers.sort((a, b) => b.value - a.value)
+            players: sortedPlayers,
+            starters: sortedPlayers.filter(p => p.isStarter)
           };
         } else {
-          myPositionStrength[pos] = { avgValue: 0, totalValue: 0, count: 0, players: [] };
+          myPositionStrength[pos] = { avgValue: 0, topValue: 0, depth: 0, count: 0, players: [], starters: [] };
         }
       });
 
-      // Identify weak and strong positions
+      // Calculate position rankings to identify weaknesses
       const positionRanking = Object.entries(myPositionStrength)
-        .map(([pos, data]: [string, any]) => ({ pos, avgValue: data.avgValue }))
-        .sort((a, b) => a.avgValue - b.avgValue);
+        .map(([pos, data]: [string, any]) => ({ 
+          pos, 
+          avgValue: data.avgValue,
+          topValue: data.topValue,
+          depth: data.depth,
+          score: (data.topValue * 0.5) + (data.avgValue * 0.3) + (data.depth * 2)
+        }))
+        .sort((a, b) => a.score - b.score);
 
       const weakPositions = positionRanking.slice(0, 2).map(p => p.pos);
       const strongPositions = positionRanking.slice(-2).map(p => p.pos);
 
-      // Analyze other teams
+      // Analyze all other teams
       const tradeSuggestions: any[] = [];
 
       teams.forEach((otherTeam: any) => {
-        if (otherTeam.id === league.userTeamId) return; // Skip my own team
+        if (otherTeam.id === league.userTeamId) return;
 
         const theirRoster = processRoster(otherTeam.roster || []).map((player: any) => {
-          const nameKey = player.playerName.toLowerCase();
-          const stats = statsMap.get(nameKey);
+          const projectedAvg = player.projectedPoints || 0;
+          const actualAvg = currentWeek > 0 ? (player.totalPoints || 0) / currentWeek : 0;
+          const value = (projectedAvg * 0.6) + (actualAvg * 0.4);
+          
           return {
             ...player,
-            weeklyAvg: stats?.weeklyAvg || player.totalPoints / currentWeek || 0,
-            value: stats?.weeklyAvg || player.totalPoints / currentWeek || 0
+            weeklyAvg: actualAvg,
+            projectedAvg: projectedAvg,
+            value: value,
+            seasonTotal: player.totalPoints || 0
           };
         });
 
         // Analyze their team
         const theirPositionStrength: any = {};
-        const theirStarters = theirRoster.filter(p => p.isStarter);
+        const theirAllPlayers = theirRoster.filter(p => ['QB', 'RB', 'WR', 'TE'].includes(p.position));
+        
         ['QB', 'RB', 'WR', 'TE'].forEach(pos => {
-          const posPlayers = theirStarters.filter(p => p.position === pos);
+          const posPlayers = theirAllPlayers.filter(p => p.position === pos);
           if (posPlayers.length > 0) {
-            const avgValue = posPlayers.reduce((sum, p) => sum + p.value, 0) / posPlayers.length;
+            const sortedPlayers = posPlayers.sort((a, b) => b.value - a.value);
+            const avgValue = sortedPlayers.reduce((sum, p) => sum + p.value, 0) / sortedPlayers.length;
+            const topValue = sortedPlayers[0]?.value || 0;
+            const depth = sortedPlayers.filter(p => p.value > 5).length;
+            
             theirPositionStrength[pos] = {
               avgValue,
-              players: posPlayers.sort((a, b) => b.value - a.value)
+              topValue,
+              depth,
+              players: sortedPlayers,
+              starters: sortedPlayers.filter(p => p.isStarter)
             };
           } else {
-            theirPositionStrength[pos] = { avgValue: 0, players: [] };
+            theirPositionStrength[pos] = { avgValue: 0, topValue: 0, depth: 0, players: [], starters: [] };
           }
         });
 
         // Find mutually beneficial trades
         weakPositions.forEach(weakPos => {
           strongPositions.forEach(strongPos => {
-            // Look for players from their strong position that could help my weak position
-            // AND players from my strong position that could help their weak position
-
             const myStrongPlayers = myPositionStrength[strongPos]?.players || [];
             const theirStrongPlayers = theirPositionStrength[weakPos]?.players || [];
 
-            // Find tradeable players (not the absolute best, but valuable)
-            const myTradeable = myStrongPlayers.slice(1, 3); // 2nd and 3rd best
-            const theirTradeable = theirStrongPlayers.slice(1, 3);
+            // Consider tradeable players: bench players or flex-worthy starters from deep positions
+            const myTradeable = myStrongPlayers.filter((p: any) => 
+              p.value > 5 && (!p.isStarter || myPositionStrength[strongPos].depth > 2)
+            ).slice(0, 4);
+            
+            const theirTradeable = theirStrongPlayers.filter((p: any) =>
+              p.value > 5 && (!p.isStarter || theirPositionStrength[weakPos].depth > 2)
+            ).slice(0, 4);
 
             myTradeable.forEach((myPlayer: any) => {
               theirTradeable.forEach((theirPlayer: any) => {
-                // Calculate trade value fairness (should be relatively close)
+                // Calculate trade fairness
                 const valueDiff = Math.abs(myPlayer.value - theirPlayer.value);
                 const avgValue = (myPlayer.value + theirPlayer.value) / 2;
-                const fairness = 1 - (valueDiff / avgValue);
+                const fairness = avgValue > 0 ? (1 - (valueDiff / avgValue)) : 0;
 
-                if (fairness > 0.7 && myPlayer.value > 3 && theirPlayer.value > 3) {
-                  // Calculate impact on both teams
-                  const myImpact = theirPlayer.value - myPlayer.value;
-                  const theirImpact = myPlayer.value - theirPlayer.value;
+                // Calculate positional need scores
+                const myNeedScore = (15 - myPositionStrength[weakPos].topValue) / 15;
+                const theirNeedScore = (15 - theirPositionStrength[strongPos].topValue) / 15;
+                
+                // Calculate improvement for both teams
+                const myImprovement = theirPlayer.value - (myPositionStrength[weakPos].avgValue || 0);
+                const theirImprovement = myPlayer.value - (theirPositionStrength[strongPos].avgValue || 0);
 
-                  // Check if trade helps both teams
-                  const myWeakPosAvg = myPositionStrength[weakPos]?.avgValue || 0;
-                  const theirWeakPosAvg = theirPositionStrength[strongPos]?.avgValue || 0;
+                // Trade is good if it's fair AND helps at least one team significantly
+                if (fairness > 0.65 && myPlayer.value > 4 && theirPlayer.value > 4) {
+                  const helpsMe = myImprovement > 1;
+                  const helpsThem = theirImprovement > 1;
+                  const mutualBenefit = helpsMe && helpsThem;
 
-                  const helpsMeMore = theirPlayer.value > myWeakPosAvg;
-                  const helpsThemMore = myPlayer.value > theirWeakPosAvg;
-
-                  if (helpsMeMore || helpsThemMore || fairness > 0.85) {
+                  if (helpsMe || mutualBenefit) {
+                    const tradeQuality = mutualBenefit ? 'Win-Win' : helpsMe ? 'Favorable' : 'Fair';
+                    
                     tradeSuggestions.push({
                       teamId: otherTeam.id,
                       teamName: otherTeam.name || `Team ${otherTeam.id}`,
+                      teamRecord: `${otherTeam.wins || 0}-${otherTeam.losses || 0}`,
+                      tradeQuality,
                       myPlayer: {
                         name: myPlayer.playerName,
                         position: myPlayer.position,
                         team: myPlayer.nflTeam,
                         weeklyAvg: myPlayer.weeklyAvg.toFixed(1),
-                        totalPoints: (myPlayer.weeklyAvg * currentWeek).toFixed(1)
+                        projected: myPlayer.projectedAvg.toFixed(1),
+                        seasonTotal: myPlayer.seasonTotal.toFixed(1),
+                        value: myPlayer.value.toFixed(1)
                       },
                       theirPlayer: {
                         name: theirPlayer.playerName,
                         position: theirPlayer.position,
                         team: theirPlayer.nflTeam,
                         weeklyAvg: theirPlayer.weeklyAvg.toFixed(1),
-                        totalPoints: (theirPlayer.weeklyAvg * currentWeek).toFixed(1)
+                        projected: theirPlayer.projectedAvg.toFixed(1),
+                        seasonTotal: theirPlayer.seasonTotal.toFixed(1),
+                        value: theirPlayer.value.toFixed(1)
                       },
                       analysis: {
                         fairness: (fairness * 100).toFixed(0) + '%',
-                        myImpact: myImpact.toFixed(1),
-                        theirImpact: theirImpact.toFixed(1),
-                        reasoning: `Upgrade your ${weakPos} by getting ${theirPlayer.playerName} (${theirPlayer.weeklyAvg.toFixed(1)} PPG) for ${myPlayer.playerName} (${myPlayer.weeklyAvg.toFixed(1)} PPG) from your deep ${strongPos} position`
+                        myImprovement: myImprovement.toFixed(1),
+                        theirImprovement: theirImprovement.toFixed(1),
+                        myWeakPosition: weakPos,
+                        myStrongPosition: strongPos,
+                        reasoning: `Strengthen your ${weakPos} position by acquiring ${theirPlayer.playerName} (${theirPlayer.projectedAvg.toFixed(1)} proj PPG). You can afford to trade ${myPlayer.playerName} from your deep ${strongPos} position.`
                       },
-                      score: fairness * 100 + (helpsMeMore ? 20 : 0) + (helpsThemMore ? 10 : 0)
+                      score: (fairness * 100) + (myImprovement * 5) + (mutualBenefit ? 30 : helpsMe ? 20 : 0) + (myNeedScore * 10)
                     });
                   }
                 }
@@ -957,7 +969,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Sort by score and return top suggestions
       tradeSuggestions.sort((a, b) => b.score - a.score);
 
-      res.json(tradeSuggestions.slice(0, 10));
+      res.json(tradeSuggestions.slice(0, 15));
     } catch (error) {
       console.error("Error fetching trade suggestions:", error);
       res.status(500).json({ message: "Failed to fetch trade suggestions" });
