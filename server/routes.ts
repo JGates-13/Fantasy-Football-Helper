@@ -135,22 +135,33 @@ function processRoster(roster: any[]): any[] {
 
     // Projected points calculation from projectedPointBreakdown
     let projectedPoints = 0;
-    if (entry.projectedPointBreakdown?.usesPoints) {
-      // Sum all projected point categories
-      const breakdown = entry.projectedPointBreakdown;
-      projectedPoints = Object.entries(breakdown)
-        .filter(([key]) => key !== 'usesPoints')
-        .reduce((sum, [_, value]) => sum + (typeof value === 'number' ? value : 0), 0);
-    } else if (player?.projectedPointBreakdown?.usesPoints) {
+    
+    // Check player object first (from teams endpoint)
+    if (player?.projectedPointBreakdown?.usesPoints) {
       const breakdown = player.projectedPointBreakdown;
       projectedPoints = Object.entries(breakdown)
         .filter(([key]) => key !== 'usesPoints')
         .reduce((sum, [_, value]) => sum + (typeof value === 'number' ? value : 0), 0);
-    } else {
-      // Fallback to direct projectedPoints field
+    }
+    // Check entry object (from matchups endpoint)
+    else if (entry.projectedPointBreakdown?.usesPoints) {
+      const breakdown = entry.projectedPointBreakdown;
+      projectedPoints = Object.entries(breakdown)
+        .filter(([key]) => key !== 'usesPoints')
+        .reduce((sum, [_, value]) => sum + (typeof value === 'number' ? value : 0), 0);
+    }
+    // Check nested playerPoolEntry structure
+    else if (entry.playerPoolEntry?.player?.projectedPointBreakdown?.usesPoints) {
+      const breakdown = entry.playerPoolEntry.player.projectedPointBreakdown;
+      projectedPoints = Object.entries(breakdown)
+        .filter(([key]) => key !== 'usesPoints')
+        .reduce((sum, [_, value]) => sum + (typeof value === 'number' ? value : 0), 0);
+    }
+    // Fallback to direct projectedPoints field
+    else {
       projectedPoints = entry.projectedPoints ?? 
-                       entry.currentPeriodProjectedStats ?? 
-                       player?.projectedPoints ?? 
+                       player?.projectedPoints ??
+                       entry.playerPoolEntry?.player?.projectedPoints ??
                        0;
     }
 
