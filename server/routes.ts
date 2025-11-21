@@ -89,34 +89,46 @@ function processRoster(roster: any[]): any[] {
     // Get the actual player position (their real position, not lineup slot)
     let actualPosition = 'N/A';
     
-    // Try defaultPosition first (like "RB/WR" for flex-eligible players)
-    if (player?.defaultPosition) {
-      // Parse positions like "RB/WR" to get primary position
+    // Priority 1: Use rosteredPosition if available (most accurate for team endpoint)
+    if (entry.rosteredPosition || player?.rosteredPosition) {
+      const rostered = entry.rosteredPosition || player.rosteredPosition;
+      // Map ESPN rostered positions to standard positions
+      if (['QB', 'RB', 'WR', 'TE', 'K'].includes(rostered)) {
+        actualPosition = rostered;
+      } else if (rostered === 'D/ST' || rostered === 'DEF') {
+        actualPosition = 'D/ST';
+      }
+    }
+    
+    // Priority 2: Check eligiblePositions array for specific positions
+    if (actualPosition === 'N/A' && player?.eligiblePositions && Array.isArray(player.eligiblePositions)) {
+      // Look for specific position (QB, RB, WR, TE, K first)
+      for (const pos of player.eligiblePositions) {
+        if (['QB', 'RB', 'WR', 'TE', 'K'].includes(pos)) {
+          actualPosition = pos;
+          break;
+        } else if (pos === 'D/ST' || pos === 'DEF') {
+          actualPosition = 'D/ST';
+          break;
+        }
+      }
+    }
+    
+    // Priority 3: Parse defaultPosition (like "RB/WR" for flex-eligible players)
+    if (actualPosition === 'N/A' && player?.defaultPosition) {
       const positions = player.defaultPosition.split('/');
-      // Use the first position that's a standard position
       for (const pos of positions) {
         if (['QB', 'RB', 'WR', 'TE', 'K'].includes(pos)) {
           actualPosition = pos;
           break;
         }
       }
-      // If still N/A and position includes D/ST
       if (actualPosition === 'N/A' && player.defaultPosition.includes('D/ST')) {
         actualPosition = 'D/ST';
       }
     }
     
-    // Fallback: check eligiblePositions array
-    if (actualPosition === 'N/A' && player?.eligiblePositions && Array.isArray(player.eligiblePositions)) {
-      for (const pos of player.eligiblePositions) {
-        if (['QB', 'RB', 'WR', 'TE', 'K', 'D/ST', 'DEF'].includes(pos)) {
-          actualPosition = pos === 'DEF' ? 'D/ST' : pos;
-          break;
-        }
-      }
-    }
-    
-    // Last resort: infer from lineup slot if it's a specific position slot
+    // Priority 4: Infer from lineup slot if it's a specific position slot
     if (actualPosition === 'N/A' && lineupSlotId < 20) {
       if (lineupSlotId === 0) actualPosition = 'QB';
       else if (lineupSlotId === 2) actualPosition = 'RB';
@@ -140,7 +152,7 @@ function processRoster(roster: any[]): any[] {
     const sumBreakdown = (breakdown: any): number => {
       if (!breakdown || typeof breakdown !== 'object') return 0;
       
-      // Check if this breakdown uses points scoring
+      // Skip if explicitly not using points
       if (breakdown.usesPoints === false) return 0;
       
       let total = 0;
@@ -149,7 +161,7 @@ function processRoster(roster: any[]): any[] {
         if (key === 'usesPoints') continue;
         
         // Add all numeric values (stat category points)
-        if (typeof value === 'number' && !isNaN(value)) {
+        if (typeof value === 'number' && !isNaN(value) && value !== 0) {
           total += value;
         }
       }
@@ -157,25 +169,28 @@ function processRoster(roster: any[]): any[] {
     };
     
     // Try all possible locations for projectedPointBreakdown
-    // Check the entry object first (from roster)
-    if (entry.projectedPointBreakdown) {
-      projectedPoints = sumBreakdown(entry.projectedPointBreakdown);
+    // Priority 1: Direct player object (from teams endpoint)
+    if (player?.projectedPointBreakdown) {
+      const sum = sumBreakdown(player.projectedPointBreakdown);
+      if (sum > 0) projectedPoints = sum;
     }
     
-    // Check player object (from teams endpoint)
-    if (projectedPoints === 0 && player?.projectedPointBreakdown) {
-      projectedPoints = sumBreakdown(player.projectedPointBreakdown);
+    // Priority 2: Entry object (from matchup/roster)
+    if (projectedPoints === 0 && entry.projectedPointBreakdown) {
+      const sum = sumBreakdown(entry.projectedPointBreakdown);
+      if (sum > 0) projectedPoints = sum;
     }
     
-    // Check nested playerPoolEntry structure
+    // Priority 3: Nested playerPoolEntry structure
     if (projectedPoints === 0 && entry.playerPoolEntry?.player?.projectedPointBreakdown) {
-      projectedPoints = sumBreakdown(entry.playerPoolEntry.player.projectedPointBreakdown);
+      const sum = sumBreakdown(entry.playerPoolEntry.player.projectedPointBreakdown);
+      if (sum > 0) projectedPoints = sum;
     }
     
-    // Fallback to direct projectedPoints field
+    // Fallback to direct projectedPoints field (if breakdown didn't work)
     if (projectedPoints === 0) {
-      projectedPoints = entry.projectedPoints ?? 
-                       player?.projectedPoints ??
+      projectedPoints = player?.projectedPoints ?? 
+                       entry.projectedPoints ??
                        entry.playerPoolEntry?.player?.projectedPoints ??
                        0;
     }
@@ -535,15 +550,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         // Log all players with projected points for verification
         const playersWithProjections = processedTeams[0].roster
-          .filter((p: any) => p.projectedPoints > 0)
-          .slice(0, 5);
-        console.log(`Players with projections (${playersWithProjections.length}):`, 
-          playersWithProjections.map((p: any) => ({
-            name: p.playerName,
-            pos: p.position,
-            proj: p.projectedPoints.toFixed(1)
-          }))
-        );
+          .filter((p: any) => p.projectedPoints > 0);
+        
+        console.log(`\n=== PROJECTION SUMMARY ===`);
+        console.log(`Total players: ${processedTeams[0].roster.length}`);
+        console.log(`Players with projections > 0: ${playersWithProjections.length}`);
+        
+        if (playersWithProjections.length > 0) {
+          console.log(`Top 5 projected players:`, 
+            playersWithProjections
+              .sort((a: any, b: any) => b.projectedPoints - a.projectedPoints)
+              .slice(0, 5)
+              .map((p: any) => ({
+                name: p.playerName,
+                pos: p.position,
+                proj: p.projectedPoints.toFixed(1)
+              }))
+          );
+        } else {
+          console.log("WARNING: No players have projected points > 0!");
+          // Log raw breakdown for debugging
+          const rawPlayer = teams[0].roster?.[0];
+          if (rawPlayer) {
+            console.log("Raw player projectedPointBreakdown:", rawPlayer.projectedPointBreakdown);
+          }
+        }
+        console.log(`========================\n`);
       }
 
       res.json({ week: currentWeek, teams: processedTeams });
