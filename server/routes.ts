@@ -126,17 +126,33 @@ function processRoster(roster: any[]): any[] {
       else if (lineupSlotId === 17) actualPosition = 'K';
     }
 
-    // Extract points
+    // Extract points - ESPN provides these at multiple levels
     const totalPoints = entry.totalPoints ?? 
                        entry.points ?? 
                        entry.appliedStatTotal ?? 
                        player?.totalPoints ?? 
                        0;
 
-    const projectedPoints = entry.projectedPoints ?? 
-                           entry.currentPeriodProjectedStats ?? 
-                           player?.projectedPoints ?? 
-                           0;
+    // Projected points calculation from projectedPointBreakdown
+    let projectedPoints = 0;
+    if (entry.projectedPointBreakdown?.usesPoints) {
+      // Sum all projected point categories
+      const breakdown = entry.projectedPointBreakdown;
+      projectedPoints = Object.entries(breakdown)
+        .filter(([key]) => key !== 'usesPoints')
+        .reduce((sum, [_, value]) => sum + (typeof value === 'number' ? value : 0), 0);
+    } else if (player?.projectedPointBreakdown?.usesPoints) {
+      const breakdown = player.projectedPointBreakdown;
+      projectedPoints = Object.entries(breakdown)
+        .filter(([key]) => key !== 'usesPoints')
+        .reduce((sum, [_, value]) => sum + (typeof value === 'number' ? value : 0), 0);
+    } else {
+      // Fallback to direct projectedPoints field
+      projectedPoints = entry.projectedPoints ?? 
+                       entry.currentPeriodProjectedStats ?? 
+                       player?.projectedPoints ?? 
+                       0;
+    }
 
     // Determine if this is a starter (lineup slot < 20 means active lineup, not bench/IR)
     const isStarter = lineupSlotId < 20 && lineupSlotId !== 21;
