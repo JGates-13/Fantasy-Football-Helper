@@ -6,7 +6,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog,
   DialogContent,
@@ -157,6 +156,8 @@ export default function Team() {
   // Separate starters and bench using isStarter flag
   const starters = myTeam?.roster?.filter((p: any) => p.isStarter === true) || [];
   const bench = myTeam?.roster?.filter((p: any) => p.isStarter === false) || [];
+  
+  const [activeView, setActiveView] = useState<'roster' | 'matchup' | 'trades' | 'waiver'>('roster');
 
   return (
     <>
@@ -171,15 +172,61 @@ export default function Team() {
             )}
           </div>
 
-          <Tabs defaultValue="roster" className="w-full">
-            <TabsList className="grid w-full grid-cols-4">
-              <TabsTrigger value="roster" data-testid="tab-roster">Roster</TabsTrigger>
-              <TabsTrigger value="matchup" data-testid="tab-matchup">Matchup</TabsTrigger>
-              <TabsTrigger value="trades" data-testid="tab-trades">Trade Ideas</TabsTrigger>
-              <TabsTrigger value="waiver" data-testid="tab-waiver">Waiver Wire</TabsTrigger>
-            </TabsList>
+          {/* Navigation Cards */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <button
+              onClick={() => setActiveView('roster')}
+              className={`p-4 rounded-md border transition-all ${
+                activeView === 'roster'
+                  ? 'bg-primary text-primary-foreground border-primary'
+                  : 'bg-card hover-elevate'
+              }`}
+              data-testid="tab-roster"
+            >
+              <Trophy className="w-5 h-5 mx-auto mb-2" />
+              <p className="text-sm font-semibold">Roster</p>
+            </button>
+            <button
+              onClick={() => setActiveView('matchup')}
+              className={`p-4 rounded-md border transition-all ${
+                activeView === 'matchup'
+                  ? 'bg-primary text-primary-foreground border-primary'
+                  : 'bg-card hover-elevate'
+              }`}
+              data-testid="tab-matchup"
+            >
+              <Users className="w-5 h-5 mx-auto mb-2" />
+              <p className="text-sm font-semibold">Matchup</p>
+            </button>
+            <button
+              onClick={() => setActiveView('trades')}
+              className={`p-4 rounded-md border transition-all ${
+                activeView === 'trades'
+                  ? 'bg-primary text-primary-foreground border-primary'
+                  : 'bg-card hover-elevate'
+              }`}
+              data-testid="tab-trades"
+            >
+              <TrendingUp className="w-5 h-5 mx-auto mb-2" />
+              <p className="text-sm font-semibold">Trades</p>
+            </button>
+            <button
+              onClick={() => setActiveView('waiver')}
+              className={`p-4 rounded-md border transition-all ${
+                activeView === 'waiver'
+                  ? 'bg-primary text-primary-foreground border-primary'
+                  : 'bg-card hover-elevate'
+              }`}
+              data-testid="tab-waiver"
+            >
+              <AlertCircle className="w-5 h-5 mx-auto mb-2" />
+              <p className="text-sm font-semibold">Waiver</p>
+            </button>
+          </div>
 
-            <TabsContent value="roster" className="space-y-4 mt-6">
+          {/* Roster View */}
+          {activeView === 'roster' && (
+            <div className="space-y-4">
               <Card>
                 <CardHeader className="pb-3">
                   <CardTitle className="flex items-center gap-2">
@@ -279,9 +326,12 @@ export default function Team() {
                   )}
                 </CardContent>
               </Card>
-            </TabsContent>
+            </div>
+          )}
 
-            <TabsContent value="matchup" className="space-y-4 mt-6">
+          {/* Matchup View */}
+          {activeView === 'matchup' && (
+            <div className="space-y-4">
               {matchupsLoading ? (
                 <Skeleton className="h-64 w-full" />
               ) : myMatchup ? (
@@ -438,9 +488,12 @@ export default function Team() {
                   </CardContent>
                 </Card>
               )}
-            </TabsContent>
+            </div>
+          )}
 
-            <TabsContent value="trades" className="space-y-4 mt-6">
+          {/* Trade Ideas View */}
+          {activeView === 'trades' && (
+            <div className="space-y-4">
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
@@ -526,9 +579,12 @@ export default function Team() {
                   )}
                 </CardContent>
               </Card>
-            </TabsContent>
+            </div>
+          )}
 
-            <TabsContent value="waiver" className="space-y-4 mt-6">
+          {/* Waiver Wire View */}
+          {activeView === 'waiver' && (
+            <div className="space-y-4">
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
@@ -587,8 +643,8 @@ export default function Team() {
                   )}
                 </CardContent>
               </Card>
-            </TabsContent>
-          </Tabs>
+            </div>
+          )}
         </div>
       </div>
 
