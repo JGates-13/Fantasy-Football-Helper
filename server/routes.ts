@@ -138,25 +138,41 @@ function processRoster(roster: any[]): any[] {
     
     // Helper function to sum breakdown values
     const sumBreakdown = (breakdown: any): number => {
-      if (!breakdown || !breakdown.usesPoints) return 0;
-      return Object.entries(breakdown)
-        .filter(([key]) => key !== 'usesPoints')
-        .reduce((sum, [_, value]) => {
-          const numValue = typeof value === 'number' ? value : 0;
-          return sum + numValue;
-        }, 0);
+      if (!breakdown || typeof breakdown !== 'object') return 0;
+      
+      // Check if this breakdown uses points scoring
+      if (breakdown.usesPoints === false) return 0;
+      
+      let total = 0;
+      for (const [key, value] of Object.entries(breakdown)) {
+        // Skip metadata fields
+        if (key === 'usesPoints') continue;
+        
+        // Add all numeric values (stat category points)
+        if (typeof value === 'number' && !isNaN(value)) {
+          total += value;
+        }
+      }
+      return total;
     };
     
     // Try all possible locations for projectedPointBreakdown
-    if (entry.projectedPointBreakdown?.usesPoints) {
+    // Check the entry object first (from roster)
+    if (entry.projectedPointBreakdown) {
       projectedPoints = sumBreakdown(entry.projectedPointBreakdown);
-    } else if (player?.projectedPointBreakdown?.usesPoints) {
+    }
+    
+    // Check player object (from teams endpoint)
+    if (projectedPoints === 0 && player?.projectedPointBreakdown) {
       projectedPoints = sumBreakdown(player.projectedPointBreakdown);
-    } else if (entry.playerPoolEntry?.player?.projectedPointBreakdown?.usesPoints) {
+    }
+    
+    // Check nested playerPoolEntry structure
+    if (projectedPoints === 0 && entry.playerPoolEntry?.player?.projectedPointBreakdown) {
       projectedPoints = sumBreakdown(entry.playerPoolEntry.player.projectedPointBreakdown);
     }
     
-    // Fallback to direct projectedPoints field if breakdown sum is 0
+    // Fallback to direct projectedPoints field
     if (projectedPoints === 0) {
       projectedPoints = entry.projectedPoints ?? 
                        player?.projectedPoints ??
@@ -516,6 +532,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
           totalPoints: samplePlayer.totalPoints,
           projectedPoints: samplePlayer.projectedPoints
         });
+        
+        // Log all players with projected points for verification
+        const playersWithProjections = processedTeams[0].roster
+          .filter((p: any) => p.projectedPoints > 0)
+          .slice(0, 5);
+        console.log(`Players with projections (${playersWithProjections.length}):`, 
+          playersWithProjections.map((p: any) => ({
+            name: p.playerName,
+            pos: p.position,
+            proj: p.projectedPoints.toFixed(1)
+          }))
+        );
       }
 
       res.json({ week: currentWeek, teams: processedTeams });
