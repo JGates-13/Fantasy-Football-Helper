@@ -44,6 +44,7 @@ function processRoster(roster: any[]): any[] {
     
     // Check if this is from the teams endpoint (has direct player properties)
     if (entry.fullName || entry.firstName || entry.lastName) {
+      // For teams endpoint, the entry IS the player
       player = entry;
       // For teams endpoint, rosteredPosition tells us the lineup slot
       if (entry.rosteredPosition) {
@@ -160,37 +161,29 @@ function processRoster(roster: any[]): any[] {
         // Skip metadata fields
         if (key === 'usesPoints') continue;
         
-        // Add all numeric values (stat category points)
-        if (typeof value === 'number' && !isNaN(value) && value !== 0) {
+        // Add all numeric values (stat category points), including 0
+        if (typeof value === 'number' && !isNaN(value)) {
           total += value;
         }
       }
       return total;
     };
     
-    // Try all possible locations for projectedPointBreakdown
-    // Priority 1: Direct player object (from teams endpoint)
-    if (player?.projectedPointBreakdown) {
-      const sum = sumBreakdown(player.projectedPointBreakdown);
-      if (sum > 0) projectedPoints = sum;
+    // Since player = entry for teams endpoint, we need to check entry.projectedPointBreakdown
+    // which is the same as player.projectedPointBreakdown
+    if (entry.projectedPointBreakdown) {
+      projectedPoints = sumBreakdown(entry.projectedPointBreakdown);
     }
     
-    // Priority 2: Entry object (from matchup/roster)
-    if (projectedPoints === 0 && entry.projectedPointBreakdown) {
-      const sum = sumBreakdown(entry.projectedPointBreakdown);
-      if (sum > 0) projectedPoints = sum;
-    }
-    
-    // Priority 3: Nested playerPoolEntry structure
+    // Fallback for matchup endpoint (playerPoolEntry structure)
     if (projectedPoints === 0 && entry.playerPoolEntry?.player?.projectedPointBreakdown) {
-      const sum = sumBreakdown(entry.playerPoolEntry.player.projectedPointBreakdown);
-      if (sum > 0) projectedPoints = sum;
+      projectedPoints = sumBreakdown(entry.playerPoolEntry.player.projectedPointBreakdown);
     }
     
-    // Fallback to direct projectedPoints field (if breakdown didn't work)
+    // Last resort: direct projectedPoints field
     if (projectedPoints === 0) {
-      projectedPoints = player?.projectedPoints ?? 
-                       entry.projectedPoints ??
+      projectedPoints = entry.projectedPoints ?? 
+                       player?.projectedPoints ??
                        entry.playerPoolEntry?.player?.projectedPoints ??
                        0;
     }
