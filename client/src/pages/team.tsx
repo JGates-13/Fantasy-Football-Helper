@@ -275,12 +275,24 @@ export default function Team() {
                         </div>
                         
                         {(() => {
-                          const myRoster = isHomeTeam ? myMatchup.homeRoster : myMatchup.awayRoster;
-                          const oppRoster = isHomeTeam ? myMatchup.awayRoster : myMatchup.homeRoster;
-                          const myProjected = myRoster?.filter((p: any) => p.isStarter)
-                            .reduce((sum: number, p: any) => sum + (p.projectedPoints || 0), 0) || 0;
-                          const oppProjected = oppRoster?.filter((p: any) => p.isStarter)
-                            .reduce((sum: number, p: any) => sum + (p.projectedPoints || 0), 0) || 0;
+                          // Use team roster data which has correct projectedPoints
+                          const myRosterData = myTeam?.roster || [];
+                          const opponentRosterData = opponentTeam?.roster || [];
+                          
+                          // Calculate projected points from starters only
+                          const myProjected = myRosterData
+                            .filter((p: any) => p.isStarter)
+                            .reduce((sum: number, p: any) => {
+                              const points = parseFloat(p.projectedPoints) || 0;
+                              return sum + points;
+                            }, 0);
+                          
+                          const oppProjected = opponentRosterData
+                            .filter((p: any) => p.isStarter)
+                            .reduce((sum: number, p: any) => {
+                              const points = parseFloat(p.projectedPoints) || 0;
+                              return sum + points;
+                            }, 0);
                           
                           // Add variance for more realistic probability (average stddev ~15-20 points)
                           const variance = 18;
@@ -403,9 +415,10 @@ export default function Team() {
                           <p className="text-[10px] sm:text-sm text-muted-foreground">Current</p>
                           <p className="text-sm sm:text-lg font-semibold text-blue-600 dark:text-blue-400">
                             {(() => {
-                              const myRoster = isHomeTeam ? myMatchup.homeRoster : myMatchup.awayRoster;
-                              const myProjected = myRoster?.filter((p: any) => p.isStarter)
-                                .reduce((sum: number, p: any) => sum + (p.projectedPoints || 0), 0) || 0;
+                              const myRosterData = myTeam?.roster || [];
+                              const myProjected = myRosterData
+                                .filter((p: any) => p.isStarter)
+                                .reduce((sum: number, p: any) => sum + (parseFloat(p.projectedPoints) || 0), 0);
                               return myProjected.toFixed(1);
                             })()}
                           </p>
@@ -416,12 +429,17 @@ export default function Team() {
                             VS
                           </div>
                           {(() => {
-                            const myRoster = isHomeTeam ? myMatchup.homeRoster : myMatchup.awayRoster;
-                            const oppRoster = isHomeTeam ? myMatchup.awayRoster : myMatchup.homeRoster;
-                            const myProjected = myRoster?.filter((p: any) => p.isStarter)
-                              .reduce((sum: number, p: any) => sum + (p.projectedPoints || 0), 0) || 0;
-                            const oppProjected = oppRoster?.filter((p: any) => p.isStarter)
-                              .reduce((sum: number, p: any) => sum + (p.projectedPoints || 0), 0) || 0;
+                            const myRosterData = myTeam?.roster || [];
+                            const oppRosterData = opponentTeam?.roster || [];
+                            
+                            const myProjected = myRosterData
+                              .filter((p: any) => p.isStarter)
+                              .reduce((sum: number, p: any) => sum + (parseFloat(p.projectedPoints) || 0), 0);
+                            
+                            const oppProjected = oppRosterData
+                              .filter((p: any) => p.isStarter)
+                              .reduce((sum: number, p: any) => sum + (parseFloat(p.projectedPoints) || 0), 0);
+                            
                             const totalProjected = myProjected + oppProjected;
                             const winProbability = totalProjected > 0 ? (myProjected / totalProjected * 100) : 50;
                             
@@ -443,9 +461,10 @@ export default function Team() {
                           <p className="text-[10px] sm:text-sm text-muted-foreground">Current</p>
                           <p className="text-sm sm:text-lg font-semibold text-blue-600 dark:text-blue-400">
                             {(() => {
-                              const oppRoster = isHomeTeam ? myMatchup.awayRoster : myMatchup.homeRoster;
-                              const oppProjected = oppRoster?.filter((p: any) => p.isStarter)
-                                .reduce((sum: number, p: any) => sum + (p.projectedPoints || 0), 0) || 0;
+                              const oppRosterData = opponentTeam?.roster || [];
+                              const oppProjected = oppRosterData
+                                .filter((p: any) => p.isStarter)
+                                .reduce((sum: number, p: any) => sum + (parseFloat(p.projectedPoints) || 0), 0);
                               return oppProjected.toFixed(1);
                             })()}
                           </p>
